@@ -14,9 +14,6 @@ inferenceExtension:
   grpcPort: 9002
   grpcHealthPort: 9003
   metricsPort: 9090
-  destinationEndpointHintMetadataNamespace: "envoy.lb"
-  destinationEndpointHintKey: "x-gateway-destination-endpoint"
-  fairnessIDHeaderKey: "x-gateway-inference-fairness-id"
   poolName: ""
   poolNamespace: "default"
   refreshMetricsInterval: "50ms"
