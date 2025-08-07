@@ -8,7 +8,7 @@ This quickstart guide is intended for engineers familiar with k8s and model serv
 
 ## **Prerequisites**
 
-- A cluster with:
+A cluster with:
   - Support for services of type `LoadBalancer`. For kind clusters, follow [this guide](https://kind.sigs.k8s.io/docs/user/loadbalancer)
   to get services of type LoadBalancer working.
   - Support for [sidecar containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/) (enabled by default since Kubernetes v1.29)
@@ -94,7 +94,11 @@ This quickstart guide is intended for engineers familiar with k8s and model serv
 ### Deploy the InferencePool and Endpoint Picker Extension
 
    ```bash
-   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/inferencepool-resources.yaml
+   helm install vllm-llama3-8b-instruct \
+  --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+  --set provider.name=gke \
+  --version v0.3.0 \
+  oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
    ```
 
 ### Deploy an Inference Gateway
@@ -110,7 +114,7 @@ This quickstart guide is intended for engineers familiar with k8s and model serv
 
          ```bash
          kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gateway.yaml
-         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/healthcheck.yaml
+         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/healthcheck.yaml # not needed if using Helm charts
          ```
 
          Confirm that the Gateway was assigned an IP address and reports a `Programmed=True` status:
@@ -123,7 +127,7 @@ This quickstart guide is intended for engineers familiar with k8s and model serv
       3. Deploy the HTTPRoute
 
          ```bash
-         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/httproute.yaml
+         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/httproute.yaml     
          ```
 
       4. Confirm that the HTTPRoute status conditions include `Accepted=True` and `ResolvedRefs=True`:
@@ -135,7 +139,7 @@ This quickstart guide is intended for engineers familiar with k8s and model serv
       5. Given that the default connection timeout may be insufficient for most inference workloads, it is recommended to configure a timeout appropriate for your intended use case.
 
          ```bash
-         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gcp-backend-policy.yaml
+         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gcp-backend-policy.yaml     # not needed if using the Helm chart.
          ```
 
 === "Istio"
