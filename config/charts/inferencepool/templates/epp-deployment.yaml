@@ -54,7 +54,6 @@ spec:
         - "--refresh-metrics-interval={{ .Values.inferenceExtension.refreshMetricsInterval }}"
         - "--refresh-prometheus-metrics-interval={{ .Values.inferenceExtension.refreshPrometheusMetricsInterval }}"
         - "--metrics-staleness-threshold={{ .Values.inferenceExtension.metricsStalenessThreshold }}"
-        - "--config-text={{ .Values.inferenceExtension.configText }}"
         {{- if eq (.Values.inferencePool.modelServerType | default "vllm") "triton-tensorrt-llm" }}
         - --total-queued-requests-metric
         - "nv_trt_llm_request_metrics{request_type=waiting}"
