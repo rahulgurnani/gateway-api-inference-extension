@@ -117,7 +117,7 @@ The following table list the configurable parameters of the chart.
 | `inferenceExtension.totalQueuedRequestsMetric`   | Prometheus metric for the number of queued requests.      |
 | `inferenceExtension.extraContainerPorts`    | List of additional container ports to expose. Defaults to `[]`.                                                        |
 | `inferenceExtension.extraServicePorts`      | List of additional service ports to expose. Defaults to `[]`.                                                          |
-| `inferenceExtension.logVerbosity`           | Logging verbosity level for the endpoint picker. Defaults to `"3"`.                                                    |
+| `inferenceExtension.logVerbosity`           | Logging verbosity level for the endpoint picker. Defaults to `"1"`.                                                    |
 | `provider.name`                             | Name of the Inference Gateway implementation being used. Possible values: `gke`. Defaults to `none`.                   |
 
 ## Notes
