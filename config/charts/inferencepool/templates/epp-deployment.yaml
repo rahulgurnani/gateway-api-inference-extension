@@ -41,6 +41,9 @@ spec:
         - "config/{{ .Values.inferenceExtension.pluginsConfigFile }}"
         # https://pkg.go.dev/flag#hdr-Command_line_flag_syntax; space is only for non-bool flags
         - "--enable-pprof={{ .Values.inferenceExtension.enablePprof }}"
+        {{- range .Values.inferenceExtension.eppFlags }}
+        - "--{{ .name }}={{ .value }}"
+        {{- end }}
         - "--model-server-metrics-path={{ .Values.inferenceExtension.modelServerMetricsPath }}"
         - "--model-server-metrics-scheme={{ .Values.inferenceExtension.modelServerMetricsScheme }}"
         - "--model-server-metrics-https-insecure-skip-verify={{ .Values.inferenceExtension.modelServerMetricsHttpsInsecureSkipVerify }}"

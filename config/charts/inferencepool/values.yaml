@@ -52,6 +52,11 @@ inferenceExtension:
   # Example environment variables:
   # env:
   #   KV_CACHE_SCORE_WEIGHT: "1"
+
+  eppFlags:
+    - name: flag1
+      value: "value1"
+
   # Define additional container ports
   modelServerMetricsPort: 0
   extraContainerPorts: []
