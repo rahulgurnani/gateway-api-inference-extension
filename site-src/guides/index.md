@@ -75,24 +75,6 @@ A cluster with:
    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/latest/download/manifests.yaml
    ```
 
-### Deploy InferenceModel
-
-   Deploy the sample InferenceModel which is configured to forward traffic to the `food-review-1` [LoRA adapter](https://docs.vllm.ai/en/latest/features/lora.html) of the sample model server.
-
-   ```bash
-   kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/v0.5.1/config/manifests/inferencemodel.yaml
-   ```
-
-### Deploy the InferencePool and Endpoint Picker Extension
-
-   ```bash
-   helm install vllm-llama3-8b-instruct \
-  --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-  --set provider.name=gke \
-  --version v0.3.0 \
-  oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-   ```
-
 ### Deploy an Inference Gateway
 
    Choose one of the following options to deploy an Inference Gateway.
@@ -115,19 +97,23 @@ A cluster with:
          NAME                CLASS               ADDRESS         PROGRAMMED   AGE
          inference-gateway   inference-gateway   <MY_ADDRESS>    True         22s
          ```
-
-      3. To install an InferencePool named vllm-llama3-8b-instruct that selects from endpoints with label app: vllm-llama3-8b-instruct and listening on port 8000, you can run the following command:
+      3. Deploy the HTTPRoute
 
          ```bash
-         helm install vllm-llama3-8b-instruct \
-         --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-         --set provider.name=gke \
-         --version v0.3.0 \
-         oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+         kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/httproute.yaml
          ```
-         
-         The Helm install automatically installs the endpoint-picker, inferencepool alongwith health check policy.
 
+      4. Confirm that the HTTPRoute status conditions include `Accepted=True` and `ResolvedRefs=True`:
+
+         ```bash
+         kubectl get httproute llm-route -o yaml
+         ```
+
+      5. Given that the default connection timeout may be insufficient for most inference workloads, it is recommended to configure a timeout appropriate for your intended use case.
+      ```
+      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gcp-backend-policy.yaml
+      ```
+   
 === "Istio"
 
       Please note that this feature is currently in an experimental phase and is not intended for production use.
@@ -280,6 +266,31 @@ A cluster with:
          ```bash
          kubectl get httproute llm-route -o yaml
          ```
+
+
+### Deploy the InferencePool and Endpoint Picker Extension
+
+   Install an InferencePool named vllm-llama3-8b-instruct that selects from endpoints with label app: vllm-llama3-8b-instruct and listening on port 8000, you can run the following command:
+
+   ```bash
+   helm install vllm-llama3-8b-instruct \
+   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+   --set provider.name=PROVIDER_NAME \
+   --version v0.3.0 \
+   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+   ```
+
+   The Helm install automatically installs the endpoint-picker, inferencepool alongwith health check policy.
+
+### Deploy InferenceObjective (Optional)
+
+   Deploy the sample InferenceObjective which is configured to forward traffic to the `food-review-1` [LoRA adapter](https://docs.vllm.ai/en/latest/features/lora.html) of the sample model server.
+
+   ```bash
+   kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/inferenceobjective.yaml
+   ```
+
+
 
 ### Try it out
 
