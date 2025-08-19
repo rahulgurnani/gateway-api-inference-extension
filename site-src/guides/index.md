@@ -108,11 +108,6 @@ A cluster with:
          ```bash
          kubectl get httproute llm-route -o yaml
          ```
-
-      5. Given that the default connection timeout may be insufficient for most inference workloads, it is recommended to configure a timeout appropriate for your intended use case.
-      ```
-      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gcp-backend-policy.yaml
-      ```
    
 === "Istio"
 
