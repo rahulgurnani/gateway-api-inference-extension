@@ -281,7 +281,7 @@ A cluster with:
    oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
    ```
 
-   The Helm install automatically installs the endpoint-picker, inferencepool alongwith health check policy.
+   The Helm install automatically installs the endpoint-picker, inferencepool along with provider specific resources.
 
 ### Deploy InferenceObjective (Optional)
 
