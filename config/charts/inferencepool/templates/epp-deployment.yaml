@@ -29,10 +29,6 @@ spec:
         - {{ .Release.Namespace }}
         - --zap-encoder
         - "json"
-        - --config-file
-        - "config/{{ .Values.inferenceExtension.pluginsConfigFile }}"
-        # https://pkg.go.dev/flag#hdr-Command_line_flag_syntax; space is only for non-bool flags
-        - "--enable-pprof={{ .Values.inferenceExtension.enablePprof }}"
         {{- range .Values.inferenceExtension.eppFlags }}
         - "--{{ .name }}={{ .value }}"
         {{- end }}
