@@ -273,6 +273,7 @@ A cluster with:
    Install an InferencePool named vllm-llama3-8b-instruct that selects from endpoints with label app: vllm-llama3-8b-instruct and listening on port 8000, you can run the following command:
 
    ```bash
+   export PROVIDER_NAME=none #  See [README](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/main/config/charts/inferencepool/README.md#configuration) for valid configurations
    helm install vllm-llama3-8b-instruct \
    --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
    --set provider.name=PROVIDER_NAME \
