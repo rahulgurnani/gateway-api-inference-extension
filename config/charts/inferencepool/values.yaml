@@ -1,5 +1,4 @@
 inferenceExtension:
-  # Number of replicas
   replicas: 1
   image:
     name: epp
@@ -8,8 +7,6 @@ inferenceExtension:
     pullPolicy: Always
   extProcPort: 9002
   env: []
-  poolName: ""
-  poolNamespace: "default"
   pluginsConfigFile: "default-plugins.yaml"
   # Define additional container ports
   extraContainerPorts: []
