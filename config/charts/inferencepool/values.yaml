@@ -69,7 +69,7 @@ inferenceExtension:
       value: ""
     - name: model-server-metrics-port
       value: 0
-    - name:   model-server-metrics-path
+    - name: model-server-metrics-path
       value: "/metrics"
     - name: model-server-metrics-scheme
       value: "http"
