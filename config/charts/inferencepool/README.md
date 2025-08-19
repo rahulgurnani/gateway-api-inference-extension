@@ -122,7 +122,7 @@ The following table list the configurable parameters of the chart.
 | `inferenceExtension.env`                    | List of environment variables to set in the endpoint picker container as free-form YAML. Defaults to `[]`.             |
 | `inferenceExtension.extraContainerPorts`    | List of additional container ports to expose. Defaults to `[]`.                                                        |
 | `inferenceExtension.extraServicePorts`      | List of additional service ports to expose. Defaults to `[]`.                                                          |
-| `inferenceExtension.eppFlags`               | List of flags which are passed through to endpoint picker.                                                             |
+| `inferenceExtension.flags`                  | List of flags which are passed through to endpoint picker.                                                             |
 | `provider.name`                             | Name of the Inference Gateway implementation being used. Possible values: `gke`. Defaults to `none`.                   |
 | `inferenceExtension.enableLeaderElection`   | Enable leader election for high availability. When enabled, only one EPP pod (the leader) will be ready to serve traffic. It is recommended to set `inferenceExtension.replicas` to a value greater than 1 when this is set to `true`. Defaults to `false`. |
 

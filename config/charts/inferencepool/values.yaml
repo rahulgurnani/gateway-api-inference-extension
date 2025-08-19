@@ -31,7 +31,7 @@ inferenceExtension:
   # env:
   #   ENABLE_EXPERIMENTAL_FEATURE: "true"
 
-  eppFlags:
+  flags:
     - name: grpc-port
       value: 9002
     - name: grpc-health-port

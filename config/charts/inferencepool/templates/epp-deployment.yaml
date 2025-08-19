@@ -29,7 +29,7 @@ spec:
         - {{ .Release.Namespace }}
         - --zap-encoder
         - "json"
-        {{- range .Values.inferenceExtension.eppFlags }}
+        {{- range .Values.inferenceExtension.flags }}
         - "--{{ .name }}={{ .value }}"
         {{- end }}
         {{- if eq (.Values.inferencePool.modelServerType | default "vllm") "triton-tensorrt-llm" }}
