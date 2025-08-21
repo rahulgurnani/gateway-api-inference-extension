@@ -124,7 +124,7 @@ The following table list the configurable parameters of the chart.
 | `inferenceExtension.extraServicePorts`      | List of additional service ports to expose. Defaults to `[]`.                                                          |
 | `inferenceExtension.flags`                  | List of flags which are passed through to endpoint picker.                                                             |
 | `provider.name`                             | Name of the Inference Gateway implementation being used. Possible values: `gke`. Defaults to `none`.                   |
-| `inferenceExtension.enableLeaderElection`   | Enable leader election for high availability. When enabled, only one EPP pod (the leader) will be ready to serve traffic. It is recommended to set `inferenceExtension.replicas` to a value greater than 1 when this is set to `true`. Defaults to `false`. |
+| `inferenceExtension.flags.has-enable-leader-election`   | Enable leader election for high availability. When enabled, only one EPP pod (the leader) will be ready to serve traffic. It is recommended to set `inferenceExtension.replicas` to a value greater than 1 when this is set to `true`. Defaults to `false`. |
 
 
 ## Notes
