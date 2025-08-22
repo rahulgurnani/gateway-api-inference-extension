@@ -84,7 +84,7 @@ A cluster with:
       1. Enable the Gateway API and configure proxy-only subnets when necessary. See [Deploy Gateways](https://cloud.google.com/kubernetes-engine/docs/how-to/deploying-gateways)
       for detailed instructions.
 
-      2. Deploy Gateway:
+      2. Deploy Inference Gateway:
 
          ```bash
          kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/gateway/gke/gateway.yaml
@@ -280,12 +280,11 @@ A cluster with:
 
 ### Deploy InferenceObjective (Optional)
 
-   Deploy the sample InferenceObjective which is configured to forward traffic to the `food-review-1` [LoRA adapter](https://docs.vllm.ai/en/latest/features/lora.html) of the sample model server.
+   Deploy the sample InferenceObjective which allows you to specify priority of requests.
 
    ```bash
    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/main/config/manifests/inferenceobjective.yaml
    ```
-
 
 
 ### Try it out
