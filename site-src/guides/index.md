@@ -89,47 +89,47 @@ Tooling:
 
 === "GKE"
 
-   ```bash
-   export GATEWAY_PROVIDER=gke
-   helm install vllm-llama3-8b-instruct \
-   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-   --set provider.name=$GATEWAY_PROVIDER \
-   --version v0.5.1 \
-   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-   ```
+      ```bash
+      export GATEWAY_PROVIDER=gke
+      helm install vllm-llama3-8b-instruct \
+      --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+      --set provider.name=$GATEWAY_PROVIDER \
+      --version v0.5.1 \
+      oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+      ```
 
 === "Istio"
 
-   ```bash
-   export GATEWAY_PROVIDER=none
-   helm install vllm-llama3-8b-instruct \
-   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-   --set provider.name=$GATEWAY_PROVIDER \
-   --version v0.5.1 \
-   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-   ```
+      ```bash
+      export GATEWAY_PROVIDER=none
+      helm install vllm-llama3-8b-instruct \
+      --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+      --set provider.name=$GATEWAY_PROVIDER \
+      --version v0.5.1 \
+      oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+      ```
 
 === "Kgateway"
 
-   ```bash
-   export GATEWAY_PROVIDER=none
-   helm install vllm-llama3-8b-instruct \
-   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-   --set provider.name=$GATEWAY_PROVIDER \
-   --version v0.5.1 \
-   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-   ```
+      ```bash
+      export GATEWAY_PROVIDER=none
+      helm install vllm-llama3-8b-instruct \
+      --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+      --set provider.name=$GATEWAY_PROVIDER \
+      --version v0.5.1 \
+      oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+      ```
 
 === "Agentgateway"
 
-   ```bash
-   export GATEWAY_PROVIDER=none
-   helm install vllm-llama3-8b-instruct \
-   --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
-   --set provider.name=$GATEWAY_PROVIDER \
-   --version v0.5.1 \
-   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
-   ```
+      ```bash
+      export GATEWAY_PROVIDER=none
+      helm install vllm-llama3-8b-instruct \
+      --set inferencePool.modelServers.matchLabels.app=vllm-llama3-8b-instruct \
+      --set provider.name=$GATEWAY_PROVIDER \
+      --version v0.5.1 \
+      oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
+      ```
 
 ### Deploy an Inference Gateway
 
