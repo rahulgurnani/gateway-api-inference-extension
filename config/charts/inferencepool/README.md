@@ -62,7 +62,8 @@ To set custom EPP plugin config, you can pass it as an inline yaml. For example:
         schedulingProfiles:
         - name: default
           plugins:
-         - pluginRef: custom-scorer
+          - pluginRef: custom-scorer
+      ```
 
 ### Install with Additional Ports
 
