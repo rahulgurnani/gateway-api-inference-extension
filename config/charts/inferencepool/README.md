@@ -50,19 +50,19 @@ $ helm install vllm-llama3-8b-instruct ./config/charts/inferencepool -f values.y
 To set custom EPP plugin config, you can pass it as an inline yaml. For example:
 
 ```yaml
-  pluginsCustomConfig:
-    custom-plugins.yaml: |
-      apiVersion: inference.networking.x-k8s.io/v1alpha1
-      kind: EndpointPickerConfig
-      plugins:
-      - type: custom-scorer
-        parameters:
-          custom-threshold: 64
-      schedulingProfiles:
-      - name: default
+  inferenceExtension:
+    pluginsCustomConfig:
+      custom-plugins.yaml: |
+        apiVersion: inference.networking.x-k8s.io/v1alpha1
+        kind: EndpointPickerConfig
         plugins:
-        - pluginRef: custom-scorer
-```
+        - type: custom-scorer
+          parameters:
+            custom-threshold: 64
+        schedulingProfiles:
+        - name: default
+          plugins:
+         - pluginRef: custom-scorer
 
 ### Install with Additional Ports
 
