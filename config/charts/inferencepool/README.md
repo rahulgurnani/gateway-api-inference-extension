@@ -63,7 +63,7 @@ To set custom EPP plugin config, you can pass it as an inline yaml. For example:
         - name: default
           plugins:
           - pluginRef: custom-scorer
-      ```
+```
 
 ### Install with Additional Ports
 
