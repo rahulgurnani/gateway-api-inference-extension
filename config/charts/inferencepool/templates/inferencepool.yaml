@@ -1,4 +1,4 @@
-{{ include "gateway-api-inference-extension.validations.inferencepool.common" $ }}
+{{ if eq .Values.inferencePool.apiVersion "inference.networking.x-k8s.io/v1alpha2"}}
 apiVersion: {{ .Values.inferencePool.apiVersion }}
 kind: InferencePool
 metadata:
@@ -7,17 +7,31 @@ metadata:
   labels:
     {{- include "gateway-api-inference-extension.labels" . | nindent 4 }}
 spec:
-  {{ if eq .Values.inferencePool.apiVersion "inference.networking.x-k8s.io/v1alpha2"}}
-  targetPortNumber:
-    {{- range .Values.inferencePool.targetPorts }}
-      - number: {{ .number }}
+  targetPortNumber: {{ .Values.inferencePool.targetPortNumber | default 8000 }}
+  selector:
+    {{- if .Values.inferencePool.modelServers.matchLabels }}
+    {{- range $key, $value := .Values.inferencePool.modelServers.matchLabels }}
+    {{ $key }}: {{ quote $value }}
     {{- end }}
-  {{ else }}
+    {{- end }}
+  extensionRef:
+    name: {{ include "gateway-api-inference-extension.name" . }}
+    portNumber: {{ .Values.inferenceExtension.extProcPort | default 9002 }}
+    failureMode: {{ .Values.inferenceExtension.failureMode | default "FailClose" }}
+{{ else }}
+{{ include "gateway-api-inference-extension.validations.inferencepool.common" $ }}
+apiVersion: "inference.networking.k8s.io/v1"
+kind: InferencePool
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "gateway-api-inference-extension.labels" . | nindent 4 }}
+spec:
   targetPorts:
     {{- range .Values.inferencePool.targetPorts }}
       - number: {{ .number }}
     {{- end }}
-  {{- end}}
   selector:
     matchLabels:
       {{- if .Values.inferencePool.modelServers.matchLabels }}
@@ -29,5 +43,6 @@ spec:
     name: {{ include "gateway-api-inference-extension.name" . }}
     port:
       number: {{ .Values.inferenceExtension.extProcPort | default 9002 }}
+{{- end }}
 
 
