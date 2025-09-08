@@ -37,9 +37,9 @@ import (
 
 const (
 	// highPriority is the priority level for the "High" priority band in the test harness config.
-	highPriority int = 10
+	highPriority int = 20
 	// lowPriority is the priority level for the "Low" priority band in the test harness config.
-	lowPriority int = 20
+	lowPriority int = 10
 	// nonExistentPriority is a priority that is known not to exist in the test harness config.
 	nonExistentPriority int = 99
 )

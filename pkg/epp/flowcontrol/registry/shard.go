@@ -135,6 +135,7 @@ func newShard(
 	}
 
 	slices.Sort(s.orderedPriorityLevels)
+	slices.Reverse(s.orderedPriorityLevels)
 	s.logger.V(logging.DEFAULT).Info("Registry shard initialized successfully",
 		"priorityBandCount", len(s.priorityBands), "orderedPriorities", s.orderedPriorityLevels)
 	return s, nil

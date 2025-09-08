@@ -132,8 +132,8 @@ type RegistryShard interface {
 	// Returns an error wrapping `ErrPriorityBandNotFound` if the priority level is not configured.
 	PriorityBandAccessor(priority int) (framework.PriorityBandAccessor, error)
 
-	// AllOrderedPriorityLevels returns all configured priority levels that this shard is aware of, sorted in ascending
-	// numerical order. This order corresponds to highest priority (lowest numeric value) to lowest priority (highest
+	// AllOrderedPriorityLevels returns all configured priority levels that this shard is aware of, sorted in descending
+	// numerical order. This order corresponds to highest priority (highest numeric value) to lowest priority (lowest
 	// numeric value).
 	// The returned slice provides a definitive, ordered list of priority levels for iteration, for example, by a
 	// `controller.FlowController` worker's dispatch loop.

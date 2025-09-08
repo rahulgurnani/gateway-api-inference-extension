@@ -112,7 +112,7 @@ type Config struct {
 // that operate at this priority level.
 type PriorityBandConfig struct {
 	// Priority is the unique numerical priority level for this band.
-	// Convention: Lower numerical values indicate higher priority (e.g., 0 is highest).
+	// Convention: Lower numerical values indicate lower priority (e.g., 0 is lowest).
 	// Required.
 	Priority int
 

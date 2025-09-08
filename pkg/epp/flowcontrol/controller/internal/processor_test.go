@@ -257,6 +257,7 @@ func (h *testHarness) allOrderedPriorityLevels() []int {
 		prios = append(prios, p)
 	}
 	slices.Sort(prios)
+	slices.Reverse(prios)
 	return prios
 }
 
@@ -1003,8 +1004,8 @@ func TestShardProcessor(t *testing.T) {
 				t.Parallel()
 				// --- ARRANGE ---
 				h := newTestHarness(t, testCleanupTick)
-				keyHigh := types.FlowKey{ID: "flow-high", Priority: 10}
-				keyLow := types.FlowKey{ID: "flow-low", Priority: 20}
+				keyHigh := types.FlowKey{ID: "flow-high", Priority: 20}
+				keyLow := types.FlowKey{ID: "flow-low", Priority: 10}
 				qHigh := h.addQueue(keyHigh)
 				qLow := h.addQueue(keyLow)
 
