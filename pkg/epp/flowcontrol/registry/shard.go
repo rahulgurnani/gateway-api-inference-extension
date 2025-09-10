@@ -18,7 +18,7 @@ package registry
 
 import (
 	"fmt"
-	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 
@@ -133,9 +133,9 @@ func newShard(
 		}
 		s.orderedPriorityLevels = append(s.orderedPriorityLevels, bandConfig.Priority)
 	}
-
-	slices.Sort(s.orderedPriorityLevels)
-	slices.Reverse(s.orderedPriorityLevels)
+	sort.Slice(s.orderedPriorityLevels, func(i, j int) bool {
+		return s.orderedPriorityLevels[i] > s.orderedPriorityLevels[j]
+	})
 	s.logger.V(logging.DEFAULT).Info("Registry shard initialized successfully",
 		"priorityBandCount", len(s.priorityBands), "orderedPriorities", s.orderedPriorityLevels)
 	return s, nil

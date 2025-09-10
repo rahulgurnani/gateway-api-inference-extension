@@ -44,7 +44,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -256,8 +256,10 @@ func (h *testHarness) allOrderedPriorityLevels() []int {
 	for p := range h.priorityFlows {
 		prios = append(prios, p)
 	}
-	slices.Sort(prios)
-	slices.Reverse(prios)
+	sort.Slice(prios, func(i, j int) bool {
+		return prios[i] > prios[j]
+	})
+
 	return prios
 }
 
