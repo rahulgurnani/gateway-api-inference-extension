@@ -23,24 +23,25 @@ Use `--set inferencePool.modelServerType=triton-tensorrt-llm` to install the `in
 
  Add the following to the `flags` in the helm chart as [flags to EPP](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/29ea29028496a638b162ff287c62c0087211bbe5/config/charts/inferencepool/values.yaml#L36)
 
- ```
-- --total-queued-requests-metric
-- "nv_trt_llm_request_metrics{request_type=waiting}"
-- --kv-cache-usage-percentage-metric
-- "nv_trt_llm_kv_cache_block_metrics{kv_cache_block_type=fraction}"
-- --lora-info-metric
-- "" # Set an empty metric to disable LoRA metric scraping as they are not supported by Triton yet.
+```
+- name=total-queued-requests-metric
+  value="nv_trt_llm_request_metrics{request_type=waiting}"
+- name=kv-cache-usage-percentage-metric
+  value="nv_trt_llm_kv_cache_block_metrics{kv_cache_block_type=fraction}"
+- name=lora-info-metric
+  value="" # Set an empty metric to disable LoRA metric scraping as they are not supported by Triton yet.
 ```
 
 ## SGLang
 
  Add the following `flags` while deploying using helm charts in the [EPP deployment](https://github.com/kubernetes-sigs/gateway-api-inference-extension/blob/29ea29028496a638b162ff287c62c0087211bbe5/config/charts/inferencepool/values.yaml#L36)
 
+
 ```
-- --totalQueuedRequestsMetric
-- "sglang:num_queue_reqs"
-- --kvCacheUsagePercentageMetric
-- "sglang:token_usage"
-- --lora-info-metric
-- "" # Set an empty metric to disable LoRA metric scraping as they are not supported by SGLang yet.
+- name=total-queued-requests-metric
+  value="sglang:num_queue_reqs"
+- name=kv-cache-usage-percentage-metric
+  value="sglang:token_usage"
+- name=lora-info-metric
+  value="" # Set an empty metric to disable LoRA metric scraping as they are not supported by SGLang yet.
 ```
