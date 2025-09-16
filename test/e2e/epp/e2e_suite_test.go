@@ -44,6 +44,10 @@ import (
 	infextv1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
 	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
 	testutils "sigs.k8s.io/gateway-api-inference-extension/test/utils"
+
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
 )
 
 const (
@@ -116,6 +120,33 @@ func TestAPIs(t *testing.T) {
 	ginkgo.RunSpecs(t,
 		"End To End Test Suite",
 	)
+}
+
+func Something() {
+	chartPath := "./charts/inferencepool" // Path to your Helm chart
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to load chart: %v", err))
+	}
+	values, _ := chartutil.ReadValuesFile("charts/inferencepool/values.yaml")
+	options := chartutil.ReleaseOptions{
+		Name:      "test-release",
+		Namespace: "default",
+	}
+	renderValues, err := chartutil.ToRenderValues(chart, values, options, nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create render values: %v", err))
+	}
+	fmt.Println(values)
+	rendered, err := engine.Render(chart, renderValues)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to render chart: %v", err))
+	}
+	return rendered
+	// // Assert on the content of the rendered manifests
+	// for name, content := range rendered {
+	// 	fmt.Printf("--- Rendered File: %s ---\n%s\n", name, content)
+	// }
 }
 
 var _ = ginkgo.BeforeSuite(func() {
