@@ -9,3 +9,5 @@ pydantic
 requests
 xgboost
 aiohttp
+onnxmltools
+skl2onnx

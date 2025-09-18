@@ -4,26 +4,43 @@ import random
 import time
 import logging
 import threading
-from datetime import datetime, timezone
-from collections import deque
-from typing import Any, Dict, List, Optional, Tuple, Union
-from enum import Enum
-
-from fastapi.responses import Response  # Fixed import
-from fastapi.responses import JSONResponse, FileResponse
-
 import joblib
 import uvicorn
 import numpy as np
 import pandas as pd
+
+from datetime import datetime, timezone
+from collections import deque
+from typing import Any, Dict, List, Optional, Tuple, Union
+from enum import Enum
+from onnxmltools.convert.xgboost.operator_converters.XGBoost import convert_xgboost
+from fastapi.responses import Response  # Fixed import
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from sklearn.linear_model import BayesianRidge
 from sklearn.preprocessing import StandardScaler
+from skl2onnx import update_registered_converter
+from skl2onnx.common.data_types import FloatTensorType
+from skl2onnx import to_onnx, convert_sklearn
+from xgboost import XGBRegressor
+from skl2onnx.common.shape_calculator import (
+    calculate_linear_regressor_output_shapes,
+)
 
 import tempfile
 import shutil
 import os  # Added this import
+import onnxmltools
+
+
+update_registered_converter(
+    XGBRegressor,
+    "XGBoostXGBRegressor",
+    calculate_linear_regressor_output_shapes,
+    convert_xgboost,
+)
+
 
 try:
     import xgboost as xgb
@@ -223,6 +240,7 @@ class LatencyPredictor:
         self.last_retrain_time = None
         self._shutdown_event = threading.Event()
         self._training_thread: threading.Thread = None
+        self.guess_type = None
         
     def _get_queue_bucket(self, num_waiting: int) -> int:
         """Map number of waiting requests to queue bucket index."""
@@ -306,6 +324,7 @@ class LatencyPredictor:
         return samples
 
     def _train_model_with_scaling(self, features: pd.DataFrame, target: pd.Series) -> Union[Tuple[BayesianRidge, StandardScaler], xgb.XGBRegressor]:
+        logging.info("_train_model_with_scaling")
         try:
             if len(features) == 0 or len(target) == 0:
                 raise ValueError("Empty training data")
@@ -315,6 +334,7 @@ class LatencyPredictor:
                 raise ValueError("Training data contains infinite values")
 
             if self.model_type == ModelType.BAYESIAN_RIDGE:
+                print("bayesian ridge")
                 scaler = StandardScaler()
                 features_scaled = scaler.fit_transform(features)
                 if np.isnan(features_scaled).any() or np.isinf(features_scaled).any():
@@ -324,10 +344,13 @@ class LatencyPredictor:
                 # but adjusting predictions later. This is not ideal but Bayesian Ridge doesn't
                 # natively support quantile regression.
                 model = BayesianRidge(compute_score=True)
+                print("calling fit")
                 model.fit(features_scaled, target)
+                self.guess_type = [('float_input', FloatTensorType([None, features_scaled.shape[1]]))]
                 return model, scaler
             
             else:  # XGBoost with quantile regression
+                print("xgbregressor")
                 model = xgb.XGBRegressor(
                     n_estimators=200,            # Number of trees to build (moderate value for balanced accuracy and speed)
                     max_depth=6,                 # Depth of trees; 6 is typically a sweet spot balancing bias/variance
@@ -343,7 +366,9 @@ class LatencyPredictor:
                     random_state=42,             # Ensures reproducible results
                     verbosity=1   
                 )
+                
                 model.fit(features, target)
+                self.guess_type = [('float_input', FloatTensorType([None, features.shape[1]]))]
                 return model
                 
         except Exception as e:
@@ -614,7 +639,7 @@ class LatencyPredictor:
             # Create subsets based on conditions
             ttft_valid = sample['actual_ttft_ms'] > 0
             tpot_valid = sample['actual_tpot_ms'] > 0
-        
+
             if is_test:
                 # Add to test data only if the respective metric is valid
                 if ttft_valid:
@@ -1166,6 +1191,31 @@ async def list_models():
             "violation_rate_percent": f"Target: {(1-predictor.quantile)*100:.1f}%"
         }
     }
+
+
+@app.get("/model/{model_name}/download_onnx")
+async def download_model_onnx(model_name: str):
+    """Download a model file."""
+    if model_name == 'tpot':
+        booster = predictor.tpot_model.get_booster()
+        original_feature_names = booster.feature_names
+        if original_feature_names is not None:
+            onnx_converter_conform_feature_names = [f"f{num}" for num in range(len(original_feature_names))]
+            booster.feature_names = onnx_converter_conform_feature_names
+        print(type(booster))
+        print(predictor.guess_type)
+        onx = to_onnx(predictor.tpot_model, initial_types=predictor.guess_type, target_opset={'ai.onnx.ml': 3})
+        with open("predictor.onnx", "wb") as f:
+            f.write(onx.SerializeToString())
+    return ""
+
+# @app.get("/models/dump")
+# async def dump_models():
+#     """Dump all available models with their status."""
+#     onnx_model = onnxmltools.convert_xgboost(predictor.tpot_model)
+#     onnxmltools.utils.save_model(onnx_model, model_name + ".onnx")
+    
+#     return ""
 
 
 if __name__ == "__main__":
