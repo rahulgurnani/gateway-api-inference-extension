@@ -42,8 +42,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	infextv1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
-	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
 	testutils "sigs.k8s.io/gateway-api-inference-extension/test/utils"
+
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
 )
 
 const (
@@ -116,6 +119,34 @@ func TestAPIs(t *testing.T) {
 	ginkgo.RunSpecs(t,
 		"End To End Test Suite",
 	)
+}
+
+func renderCharts(nsName string) []string {
+	chartPath := "./charts/inferencepool" // Path to your Helm chart
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to load chart: %v", err))
+	}
+	values, _ := chartutil.ReadValuesFile("charts/inferencepool/values.yaml")
+	options := chartutil.ReleaseOptions{
+		Name:      "vllm-llama3-8b-instruct",
+		Namespace: nsName,
+	}
+	renderValues, err := chartutil.ToRenderValues(chart, values, options, nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create render values: %v", err))
+	}
+	fmt.Println(values)
+	rendered, err := engine.Render(chart, renderValues)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to render chart: %v", err))
+	}
+	fmt.Println(rendered)
+	var renderedValues []string
+	for _, v := range rendered {
+		renderedValues = append(renderedValues, v)
+	}
+	return renderedValues
 }
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -200,7 +231,7 @@ func setupSuite() {
 	err = apiextv1.AddToScheme(scheme)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
-	err = infextv1a2.Install(scheme)
+	// err = infextv1a2.Install(scheme)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = infextv1.Install(scheme)
@@ -407,16 +438,7 @@ func createEnvoy(k8sClient client.Client, filePath string) {
 
 // createInferExt creates the inference extension resources used for testing from the given filePath.
 func createInferExt(k8sClient client.Client, filePath string) {
-	inManifests := readYaml(filePath)
-	ginkgo.By("Replacing placeholders with environment variables")
-	outManifests := []string{}
-	for _, manifest := range inManifests {
-		replacer := strings.NewReplacer(
-			"$E2E_NS", nsName,
-			"$E2E_IMAGE", e2eImage,
-		)
-		outManifests = append(outManifests, replacer.Replace(manifest))
-	}
+	outManifests := renderCharts(nsName)
 
 	ginkgo.By("Creating inference extension resources from manifest: " + filePath)
 	createObjsFromYaml(k8sClient, outManifests)
