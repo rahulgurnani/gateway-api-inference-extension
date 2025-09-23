@@ -37,6 +37,10 @@ import (
 	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/env"
 	testutils "sigs.k8s.io/gateway-api-inference-extension/test/utils"
+
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
 )
 
 const (
@@ -96,6 +100,34 @@ func TestAPIs(t *testing.T) {
 	ginkgo.RunSpecs(t,
 		"End To End Test Suite",
 	)
+}
+
+func renderCharts(nsName string) []string {
+	chartPath := "./charts/inferencepool" // Path to your Helm chart
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to load chart: %v", err))
+	}
+	values, _ := chartutil.ReadValuesFile("charts/inferencepool/values.yaml")
+	options := chartutil.ReleaseOptions{
+		Name:      "vllm-llama3-8b-instruct",
+		Namespace: nsName,
+	}
+	renderValues, err := chartutil.ToRenderValues(chart, values, options, nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create render values: %v", err))
+	}
+	fmt.Println(values)
+	rendered, err := engine.Render(chart, renderValues)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to render chart: %v", err))
+	}
+	fmt.Println(rendered)
+	var renderedValues []string
+	for _, v := range rendered {
+		renderedValues = append(renderedValues, v)
+	}
+	return renderedValues
 }
 
 var _ = ginkgo.BeforeSuite(func() {
@@ -181,6 +213,7 @@ func setupSuite() {
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = infextv1a2.Install(testConfig.Scheme)
+	// err = infextv1a2.Install(scheme)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = infextv1.Install(testConfig.Scheme)
@@ -327,6 +360,8 @@ func createInferExt(testConfig *testutils.TestConfig, filePath string) {
 	for _, manifest := range inManifests {
 		outManifests = append(outManifests, replacer.Replace(manifest))
 	}
+func createInferExt(k8sClient client.Client, filePath string) {
+	outManifests := renderCharts(nsName)
 
 	ginkgo.By("Creating inference extension resources from manifest: " + filePath)
 	testutils.CreateObjsFromYaml(testConfig, outManifests)
