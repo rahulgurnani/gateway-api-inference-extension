@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"testing"
@@ -29,7 +30,6 @@ import (
 	"github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	infextv1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
+	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
 	testutils "sigs.k8s.io/gateway-api-inference-extension/test/utils"
 
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -98,6 +99,8 @@ const (
 	metricsRbacManifest = "../../testdata/metrics-rbac.yaml"
 	// modelServerManifestFilepathEnvVar is the env var that holds absolute path to the manifest for the model server test resource.
 	modelServerManifestFilepathEnvVar = "MANIFEST_PATH"
+
+	name = "vllm-llama3-8b-instruct"
 )
 
 const e2eLeaderElectionEnabledEnvVar = "E2E_LEADER_ELECTION_ENABLED"
@@ -121,16 +124,20 @@ func TestAPIs(t *testing.T) {
 	)
 }
 
-func renderCharts(nsName string) []string {
-	chartPath := "./charts/inferencepool" // Path to your Helm chart
+func renderChartsToYamls(nsName string) []string {
+	chartPath := "/usr/local/google/home/rahulgurnani/gateway-api-inference-extension/config/charts/inferencepool"
 	chart, err := loader.Load(chartPath)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to load chart: %v", err))
 	}
-	values, _ := chartutil.ReadValuesFile("charts/inferencepool/values.yaml")
+	values, _ := chartutil.ReadValuesFile("/usr/local/google/home/rahulgurnani/gateway-api-inference-extension/config/charts/inferencepool/values.yaml")
 	options := chartutil.ReleaseOptions{
-		Name:      "vllm-llama3-8b-instruct",
+		Name:      name,
 		Namespace: nsName,
+	}
+	for file := range chart.Files {
+		fmt.Println("file:")
+		fmt.Println(file)
 	}
 	renderValues, err := chartutil.ToRenderValues(chart, values, options, nil)
 	if err != nil {
@@ -141,11 +148,22 @@ func renderCharts(nsName string) []string {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to render chart: %v", err))
 	}
-	fmt.Println(rendered)
 	var renderedValues []string
-	for _, v := range rendered {
-		renderedValues = append(renderedValues, v)
+	for fName, renderedChart := range rendered {
+		if strings.Contains(fName, "NOTES.txt") {
+			continue
+		}
+
+		fmt.Println("----------------rendered----------------")
+		fmt.Println(fName)
+		objs := strings.Split(renderedChart, "\n---")
+		for _, obj := range objs {
+			fmt.Println("-----------obj-----------")
+			fmt.Println(obj)
+			renderedValues = append(renderedValues, obj)
+		}
 	}
+
 	return renderedValues
 }
 
@@ -161,6 +179,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		leaderElectionEnabled = true
 		ginkgo.By("Leader election test mode enabled via " + e2eLeaderElectionEnabledEnvVar)
 	}
+	leaderElectionEnabled = false
 
 	ginkgo.By("Setting up the test suite")
 	setupSuite()
@@ -182,17 +201,13 @@ func setupInfra() {
 	}
 	crds := map[string]string{
 		"inferencepools.inference.networking.x-k8s.io":      xInferPoolManifest,
-		"inferenceobjectives.inference.networking.x-k8s.io": xInferObjectiveManifest,
 		"inferencepools.inference.networking.k8s.io":        inferPoolManifest,
+		"inferenceobjectives.inference.networking.x-k8s.io": xInferObjectiveManifest,
 	}
 
 	createCRDs(cli, crds)
 
-	inferExtManifestPath := inferExtManifestDefault
-	if leaderElectionEnabled {
-		inferExtManifestPath = inferExtManifestLeaderElection
-	}
-	createInferExt(cli, inferExtManifestPath)
+	createInferExt(cli)
 	createClient(cli, clientManifest)
 	createEnvoy(cli, envoyManifest)
 	createMetricsRbac(cli, metricsRbacManifest)
@@ -231,7 +246,8 @@ func setupSuite() {
 	err = apiextv1.AddToScheme(scheme)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
-	// err = infextv1a2.Install(scheme)
+	// TODO: Fix the v1a2 chart
+	err = infextv1a2.Install(scheme)
 	gomega.ExpectWithOffset(1, err).NotTo(gomega.HaveOccurred())
 
 	err = infextv1.Install(scheme)
@@ -437,36 +453,11 @@ func createEnvoy(k8sClient client.Client, filePath string) {
 }
 
 // createInferExt creates the inference extension resources used for testing from the given filePath.
-func createInferExt(k8sClient client.Client, filePath string) {
-	outManifests := renderCharts(nsName)
+func createInferExt(k8sClient client.Client) {
+	outManifests := renderChartsToYamls(nsName)
 
-	ginkgo.By("Creating inference extension resources from manifest: " + filePath)
+	ginkgo.By("Creating inference extension resources from outManifests")
 	createObjsFromYaml(k8sClient, outManifests)
-
-	// Wait for the serviceaccount to exist.
-	testutils.EventuallyExists(ctx, func() error {
-		return k8sClient.Get(ctx, types.NamespacedName{Namespace: nsName, Name: inferExtName}, &corev1.ServiceAccount{})
-	}, existsTimeout, interval)
-
-	// Wait for the role to exist.
-	testutils.EventuallyExists(ctx, func() error {
-		return k8sClient.Get(ctx, types.NamespacedName{Namespace: nsName, Name: "pod-read"}, &rbacv1.Role{})
-	}, existsTimeout, interval)
-
-	// Wait for the rolebinding to exist.
-	testutils.EventuallyExists(ctx, func() error {
-		return k8sClient.Get(ctx, types.NamespacedName{Namespace: nsName, Name: "pod-read-binding"}, &rbacv1.RoleBinding{})
-	}, existsTimeout, interval)
-
-	// Wait for the clusterrole to exist.
-	testutils.EventuallyExists(ctx, func() error {
-		return k8sClient.Get(ctx, types.NamespacedName{Name: "auth-reviewer"}, &rbacv1.ClusterRole{})
-	}, existsTimeout, interval)
-
-	// Wait for the clusterrolebinding to exist.
-	testutils.EventuallyExists(ctx, func() error {
-		return k8sClient.Get(ctx, types.NamespacedName{Name: "auth-reviewer-binding"}, &rbacv1.ClusterRoleBinding{})
-	}, existsTimeout, interval)
 
 	// Wait for the deployment to exist.
 	deploy := &appsv1.Deployment{}
@@ -511,8 +502,13 @@ func createObjsFromYaml(k8sClient client.Client, docs []string) {
 		if trimmed == "" {
 			continue
 		}
+
 		// Decode into a runtime.Object
 		obj, gvk, decodeErr := decoder.Decode([]byte(trimmed), nil, nil)
+		if decodeErr != nil {
+			log.Printf("Trimmed: %s", trimmed)
+			continue
+		}
 		gomega.Expect(decodeErr).NotTo(gomega.HaveOccurred(),
 			"Failed to decode YAML document to a Kubernetes object")
 

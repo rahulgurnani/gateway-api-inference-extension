@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -261,7 +262,7 @@ func verifyMetrics() {
 	// Generate traffic by sending requests through the inference extension
 	ginkgo.By("Generating traffic through the inference extension")
 	curlCmd := getCurlCommand(envoyName, nsName, envoyPort, modelName, curlTimeout, "/completions", "Write as if you were a critic: San Francisco", true)
-
+	log.Println("Running curl command in the pod")
 	// Run the curl command multiple times to generate some metrics data
 	for i := 0; i < 5; i++ {
 		_, err := testutils.ExecCommandInPod(ctx, cfg, scheme, kubeCli, nsName, "curl", "curl", curlCmd)
@@ -270,6 +271,7 @@ func verifyMetrics() {
 
 	// modify the curl command to generate some error metrics
 	curlCmd[len(curlCmd)-1] = "invalid input"
+	log.Println("Running curl with error command in the pod")
 	for i := 0; i < 5; i++ {
 		_, err := testutils.ExecCommandInPod(ctx, cfg, scheme, kubeCli, nsName, "curl", "curl", curlCmd)
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -278,6 +280,7 @@ func verifyMetrics() {
 	// Now scrape metrics from the EPP endpoint via the curl pod
 	ginkgo.By("Scraping metrics from the EPP endpoint")
 	podIP := findReadyPod().Status.PodIP
+	log.Println("Found ready pod")
 
 	// Get the authorization token for reading metrics
 	token := ""
@@ -286,6 +289,7 @@ func verifyMetrics() {
 		g.Expect(err).NotTo(gomega.HaveOccurred())
 		g.Expect(t).NotTo(gomega.BeEmpty())
 		token = t
+		log.Println("Got the token")
 	}, existsTimeout, interval).Should(gomega.Succeed())
 
 	// Construct the metric scraping curl command using Pod IP
@@ -294,7 +298,12 @@ func verifyMetrics() {
 	ginkgo.By("Verifying that all expected metrics are present.")
 	gomega.Eventually(func() error {
 		// Execute the metrics scrape command inside the curl pod
+		log.Println("Execute the metrics scrap command")
 		resp, err := testutils.ExecCommandInPod(ctx, cfg, scheme, kubeCli, nsName, "curl", "curl", metricScrapeCmd)
+		log.Println("Response of exec:")
+		log.Println(resp)
+		log.Println("Error in exec:")
+		log.Println(err)
 		if err != nil {
 			return err
 		}
@@ -327,13 +336,18 @@ func findReadyPod() *corev1.Pod {
 	var readyPod *corev1.Pod
 	gomega.Eventually(func(g gomega.Gomega) {
 		podList := &corev1.PodList{}
-		err := cli.List(ctx, podList, client.InNamespace(nsName), client.MatchingLabels{"app": inferExtName})
+		log.Printf("Namesapce %s", nsName)
+		log.Printf("inferExtName %s", inferExtName)
+		err := cli.List(ctx, podList, client.InNamespace(nsName), client.MatchingLabels{"inferencepool": inferExtName})
 		g.Expect(err).NotTo(gomega.HaveOccurred())
-
+		log.Println("listed pods")
+		log.Println(podList)
 		foundReadyPod := false
 		for i := range podList.Items {
 			pod := &podList.Items[i]
 			for _, cond := range pod.Status.Conditions {
+				log.Println("Condition:")
+				log.Println(cond)
 				if cond.Type == corev1.PodReady && cond.Status == corev1.ConditionTrue {
 					g.Expect(pod.Status.PodIP).NotTo(gomega.BeEmpty(), "Ready pod must have an IP")
 					readyPod = pod

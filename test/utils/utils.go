@@ -211,6 +211,7 @@ func DeploymentReadyReplicas(ctx context.Context, cli client.Client, deploy *app
 		var fetchedDeploy appsv1.Deployment
 		err := cli.Get(ctx, types.NamespacedName{Namespace: deploy.Namespace, Name: deploy.Name}, &fetchedDeploy)
 		g.Expect(err).NotTo(gomega.HaveOccurred())
+		fmt.Sprintf("%v", fetchedDeploy)
 		g.Expect(fetchedDeploy.Status.ReadyReplicas).To(gomega.BeNumerically(">=", count),
 			fmt.Sprintf("Deployment only has %d ready replicas, want at least %d", fetchedDeploy.Status.ReadyReplicas, count))
 	}, timeout, interval).Should(gomega.Succeed())
@@ -225,6 +226,7 @@ func checkDeploymentStatus(ctx context.Context, cli client.Client, deploy *appsv
 	found := 0
 	for _, want := range conditions {
 		for _, c := range fetchedDeploy.Status.Conditions {
+			fmt.Println(c)
 			if c.Type == want.Type && c.Status == want.Status {
 				found += 1
 			}
