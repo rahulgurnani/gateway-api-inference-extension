@@ -7,6 +7,14 @@ metadata:
     {{- include "gateway-api-inference-extension.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.inferenceExtension.replicas | default 1 }}
+  strategy:
+    # The current recommended EPP deployment pattern is to have a single active replica. This ensures 
+    # optimal performance of the stateful operations such prefix cache aware scorer.
+    # The Recreate strategy the old replica is killed immediately, and allow the new replica(s) to 
+    # quickly take over. This is particularly important in the high availability set up with leader
+    # election, as the rolling update strategy would prevent the old leader being killed because 
+    # otherwise the maxUnavailable would be 100%.
+    type: Recreate
   selector:
     matchLabels:
       {{- include "gateway-api-inference-extension.selectorLabels" . | nindent 6 }}
@@ -25,6 +33,9 @@ spec:
         args:
         - --pool-name
         - {{ .Release.Name }}
+        # The pool namespace is optional because EPP can default to the NAMESPACE env var.
+        # We still keep this here so that the template works with older versions of EPP, or other
+        # distros of EPP which may not have implemented the NAMESPACE env var defaulting behavior.
         - --pool-namespace
         - {{ .Release.Namespace }}
         {{- if ne .Values.inferencePool.apiVersion "inference.networking.k8s.io" }}
@@ -35,10 +46,6 @@ spec:
         - "json"
         - --config-file
         - "/config/{{ .Values.inferenceExtension.pluginsConfigFile }}"
-        {{- range .Values.inferenceExtension.flags }}
-        - "--{{ .name }}"
-        - "{{ .value }}"
-        {{- end }}
         {{- if eq (.Values.inferencePool.modelServerType | default "vllm") "triton-tensorrt-llm" }}
         - --total-queued-requests-metric
         - "nv_trt_llm_request_metrics{request_type=waiting}"
@@ -46,6 +53,14 @@ spec:
         - "nv_trt_llm_kv_cache_block_metrics{kv_cache_block_type=fraction}"
         - --lora-info-metric
         - "" # Set an empty metric to disable LoRA metric scraping as they are not supported by Triton yet.
+        {{- end }}
+        {{- if gt (.Values.inferenceExtension.replicas | int) 1 }}
+        - --ha-enable-leader-election
+        {{- end }}
+        # Pass additional flags via the inferenceExtension.flags field in values.yaml.
+        {{- range .Values.inferenceExtension.flags }}
+        - "--{{ .name }}"
+        - "{{ .value }}"
         {{- end }}
         ports:
         - name: grpc
@@ -58,7 +73,7 @@ spec:
         {{- toYaml .Values.inferenceExtension.extraContainerPorts | nindent 8 }}
         {{- end }}
         livenessProbe:
-          {{- if .Values.inferenceExtension.enableLeaderElection }}
+          {{- if gt (.Values.inferenceExtension.replicas | int) 1 }}
           grpc:
             port: 9003
             service: liveness
@@ -70,7 +85,7 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 10
         readinessProbe:
-          {{- if .Values.inferenceExtension.enableLeaderElection }}
+          {{- if gt (.Values.inferenceExtension.replicas | int) 1 }}
           grpc:
             port: 9003
             service: readiness
@@ -79,10 +94,14 @@ spec:
             port: 9003
             service: inference-extension
           {{- end }}
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        {{- if .Values.inferenceExtension.env }}
+          periodSeconds: 2
+
         env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        {{- if .Values.inferenceExtension.env }}
         {{- toYaml .Values.inferenceExtension.env | nindent 8 }}
         {{- end }}
         volumeMounts:

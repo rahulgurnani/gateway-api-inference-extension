@@ -35,7 +35,8 @@ inferenceExtension:
     # Log verbosity
     - name: v
       value: 1
-
+    - name: ha-enable-leader-election
+      value: "true"
   affinity: {}
 
   tolerations: []

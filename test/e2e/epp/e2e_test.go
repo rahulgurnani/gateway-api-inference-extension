@@ -86,16 +86,17 @@ var _ = ginkgo.Describe("InferencePool", func() {
 			if !leaderElectionEnabled {
 				ginkgo.Skip("Leader election is not enabled for this test run, skipping.")
 			}
-
+			fmt.Println("Leader election enabled")
 			ginkgo.By("Verifying that exactly one EPP pod is ready")
 			gomega.Eventually(func(g gomega.Gomega) {
 				podList := &corev1.PodList{}
-				err := cli.List(ctx, podList, client.InNamespace(nsName), client.MatchingLabels{"app": inferExtName})
+				err := cli.List(ctx, podList, client.InNamespace(nsName), client.MatchingLabels{"inferencepool": inferExtName})
+				fmt.Println("listed nsName")
+				fmt.Printf("err %v", err)
 				g.Expect(err).NotTo(gomega.HaveOccurred())
-
 				// The deployment should have 3 replicas for leader election.
 				g.Expect(podList.Items).To(gomega.HaveLen(3))
-
+				fmt.Println(podList.Items[0])
 				readyPods := 0
 				for _, pod := range podList.Items {
 					for _, cond := range pod.Status.Conditions {
@@ -104,7 +105,8 @@ var _ = ginkgo.Describe("InferencePool", func() {
 						}
 					}
 				}
-				g.Expect(readyPods).To(gomega.Equal(1), "Expected exactly one pod to be ready")
+				fmt.Printf("readpods %d", readyPods)
+				g.Expect(readyPods).To(gomega.Equal(1), "Expected exactly one pod to be ready") // why do we expect only one pod to be ready???
 			}, readyTimeout, interval).Should(gomega.Succeed())
 		})
 
@@ -140,7 +142,7 @@ var _ = ginkgo.Describe("InferencePool", func() {
 				d := &appsv1.Deployment{}
 				err := cli.Get(ctx, types.NamespacedName{Namespace: nsName, Name: inferExtName}, d)
 				g.Expect(err).NotTo(gomega.HaveOccurred())
-				g.Expect(d.Status.Replicas).To(gomega.Equal(int32(3)), "Deployment should have 3 replicas")
+				g.Expect(d.Status.Replicas).To(gomega.Equal(int32(replicaCount)), "Deployment should have 3 replicas")
 			}, readyTimeout, interval).Should(gomega.Succeed())
 
 			ginkgo.By("STEP 4: Verifying a new, different leader is elected")

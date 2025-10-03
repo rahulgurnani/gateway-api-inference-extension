@@ -99,6 +99,8 @@ const (
 	metricsRbacManifest = "../../testdata/metrics-rbac.yaml"
 	// modelServerManifestFilepathEnvVar is the env var that holds absolute path to the manifest for the model server test resource.
 	modelServerManifestFilepathEnvVar = "MANIFEST_PATH"
+	// replicaCount is the number of replicas of EPP.
+	replicaCount = 3
 
 	name = "vllm-llama3-8b-instruct"
 )
@@ -131,13 +133,23 @@ func renderChartsToYamls(nsName string) []string {
 		panic(fmt.Sprintf("Failed to load chart: %v", err))
 	}
 	values, _ := chartutil.ReadValuesFile("/usr/local/google/home/rahulgurnani/gateway-api-inference-extension/config/charts/inferencepool/values.yaml")
+	infExt, ok := values["inferenceExtension"].(map[string]interface{})
+	if ok {
+		infExt["replicas"] = replicaCount
+		fmt.Println(infExt)
+		flags, ok := infExt["flags"].([]interface{})
+		if ok {
+			flags = append(flags, map[string]string{
+				"name":  "ha-enable-leader-election",
+				"value": "true",
+			})
+			infExt["flags"] = flags
+		}
+	}
+
 	options := chartutil.ReleaseOptions{
 		Name:      name,
 		Namespace: nsName,
-	}
-	for file := range chart.Files {
-		fmt.Println("file:")
-		fmt.Println(file)
 	}
 	renderValues, err := chartutil.ToRenderValues(chart, values, options, nil)
 	if err != nil {
@@ -179,7 +191,7 @@ var _ = ginkgo.BeforeSuite(func() {
 		leaderElectionEnabled = true
 		ginkgo.By("Leader election test mode enabled via " + e2eLeaderElectionEnabledEnvVar)
 	}
-	leaderElectionEnabled = false
+	leaderElectionEnabled = true
 
 	ginkgo.By("Setting up the test suite")
 	setupSuite()
