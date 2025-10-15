@@ -102,6 +102,11 @@ func (p *WeightedRandomPicker) TypedName() plugins.TypedName {
 	return p.typedName
 }
 
+// Consumes returns the list of data that is consumed by the plugin.
+func (p *WeightedRandomPicker) Consumes() map[string]any {
+	return nil
+}
+
 // Pick selects the pod(s) randomly from the list of candidates, where the probability of the pod to get picked is derived
 // from its weighted score.
 func (p *WeightedRandomPicker) Pick(ctx context.Context, cycleState *types.CycleState, scoredPods []*types.ScoredPod) *types.ProfileRunResult {

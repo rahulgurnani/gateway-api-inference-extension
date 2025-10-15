@@ -16,9 +16,27 @@ limitations under the License.
 
 package plugins
 
+const (
+	KVCacheUsagePercentKey = "KVCacheUsagePercent"
+	WaitingQueueSizeKey    = "WaitingQueueSize"
+	MaxActiveModelsKey     = "MaxActiveModels"
+	ActiveModelsKey        = "ActiveModels"
+	WaitingModelsKey       = "WaitingModels"
+	UpdateTimeKey          = "UpdateTime"
+)
+
 // Plugin defines the interface for a plugin.
 // This interface should be embedded in all plugins across the code.
 type Plugin interface {
 	// TypedName returns the type and name tuple of this plugin instance.
 	TypedName() TypedName
+	// Consumes represents data consumed by the plugin.
+	Consumes() map[string]any
+}
+
+// ProducerPlugin defines the interface for a producer.
+type ProducerPlugin interface {
+	Plugin
+	// Produces represents data produced by the producer.
+	Produces() map[string]any
 }

@@ -662,6 +662,10 @@ func (f *test1) TypedName() plugins.TypedName {
 	return f.typedName
 }
 
+func (f *test1) Consumes() map[string]any {
+	return nil
+}
+
 // Filter filters out pods that doesn't meet the filter criteria.
 func (f *test1) Filter(_ context.Context, _ *types.CycleState, _ *types.LLMRequest, pods []types.Pod) []types.Pod {
 	return pods
@@ -682,6 +686,10 @@ func newTest2() *test2 {
 
 func (m *test2) TypedName() plugins.TypedName {
 	return m.typedName
+}
+
+func (m *test2) Consumes() map[string]any {
+	return nil
 }
 
 func (m *test2) Score(_ context.Context, _ *types.CycleState, _ *types.LLMRequest, _ []types.Pod) map[types.Pod]float64 {
@@ -705,6 +713,10 @@ func (p *testPicker) TypedName() plugins.TypedName {
 	return p.typedName
 }
 
+func (p *testPicker) Consumes() map[string]any {
+	return nil
+}
+
 func (p *testPicker) Pick(_ context.Context, _ *types.CycleState, _ []*types.ScoredPod) *types.ProfileRunResult {
 	return nil
 }
@@ -724,6 +736,10 @@ func newTestProfileHandler() *testProfileHandler {
 
 func (p *testProfileHandler) TypedName() plugins.TypedName {
 	return p.typedName
+}
+
+func (p *testProfileHandler) Consumes() map[string]any {
+	return nil
 }
 
 func (p *testProfileHandler) Pick(_ context.Context, _ *types.CycleState, _ *types.LLMRequest, _ map[string]*framework.SchedulerProfile, _ map[string]*types.ProfileRunResult) map[string]*framework.SchedulerProfile {

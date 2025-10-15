@@ -28,6 +28,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 )
 
 const (
@@ -45,6 +46,17 @@ const (
 // server protocol standard.
 type Extractor struct {
 	mapping *Mapping
+}
+
+func Produces() map[string]any {
+	return map[string]any{
+		plugins.WaitingQueueSizeKey:    int(0),
+		plugins.KVCacheUsagePercentKey: float64(0),
+		plugins.ActiveModelsKey:        map[string]int{},
+		plugins.WaitingModelsKey:       map[string]int{},
+		plugins.MaxActiveModelsKey:     int(0),
+		plugins.UpdateTimeKey:          time.Time{},
+	}
 }
 
 // NewExtractor returns a new model server protocol (MSP) metrics extractor,

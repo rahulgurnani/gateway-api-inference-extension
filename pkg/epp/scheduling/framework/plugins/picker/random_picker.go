@@ -77,6 +77,11 @@ func (p *RandomPicker) TypedName() plugins.TypedName {
 	return p.typedName
 }
 
+// Consumes returns the list of data that is consumed by the plugin.
+func (p *RandomPicker) Consumes() map[string]any {
+	return nil
+}
+
 // Pick selects random pod(s) from the list of candidates.
 func (p *RandomPicker) Pick(ctx context.Context, _ *types.CycleState, scoredPods []*types.ScoredPod) *types.ProfileRunResult {
 	log.FromContext(ctx).V(logutil.DEBUG).Info("Selecting pods from candidates randomly", "max-num-of-endpoints", p.maxNumOfEndpoints,

@@ -54,6 +54,13 @@ func (s *KVCacheUtilizationScorer) TypedName() plugins.TypedName {
 	return s.typedName
 }
 
+// Consumes returns the list of data that is consumed by the plugin.
+func (s *KVCacheUtilizationScorer) Consumes() map[string]any {
+	return map[string]any{
+		plugins.KVCacheUsagePercentKey: float64(0),
+	}
+}
+
 // WithName sets the name of the scorer.
 func (s *KVCacheUtilizationScorer) WithName(name string) *KVCacheUtilizationScorer {
 	s.typedName.Name = name

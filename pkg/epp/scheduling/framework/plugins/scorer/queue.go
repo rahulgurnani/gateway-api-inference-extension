@@ -56,6 +56,13 @@ func (s *QueueScorer) TypedName() plugins.TypedName {
 	return s.typedName
 }
 
+// Consumes returns the list of data that is consumed by the plugin.
+func (s *QueueScorer) Consumes() map[string]any {
+	return map[string]any{
+		plugins.WaitingQueueSizeKey: int(0),
+	}
+}
+
 // WithName sets the name of the scorer.
 func (s *QueueScorer) WithName(name string) *QueueScorer {
 	s.typedName.Name = name

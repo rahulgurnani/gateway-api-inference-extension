@@ -27,6 +27,8 @@ import (
 
 const (
 	LoraAffinityScorerType = "lora-affinity-scorer"
+	ActiveModelsKey        = "ActiveModels"
+	WaitingModelsKey       = "WaitingModels"
 )
 
 // compile-time type assertion
@@ -52,6 +54,14 @@ type LoraAffinityScorer struct {
 // TypedName returns the type and name tuple of this plugin instance.
 func (s *LoraAffinityScorer) TypedName() plugins.TypedName {
 	return s.tn
+}
+
+// Consumes returns the list of data that is consumed by the plugin.
+func (s *LoraAffinityScorer) Consumes() map[string]any {
+	return map[string]any{
+		ActiveModelsKey:  map[string]int{},
+		WaitingModelsKey: map[string]int{},
+	}
 }
 
 // WithName sets the name of the scorer.

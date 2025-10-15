@@ -184,6 +184,11 @@ func (p *Plugin) TypedName() plugins.TypedName {
 	return p.typedName
 }
 
+// Consumes returns the list of data that is consumed by the plugin.
+func (p *Plugin) Consumes() map[string]any {
+	return nil
+}
+
 // WithName sets the name of the plugin.
 func (p *Plugin) WithName(name string) *Plugin {
 	p.typedName.Name = name
