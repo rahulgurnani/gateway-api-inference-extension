@@ -21,6 +21,11 @@ package plugins
 type Plugin interface {
 	// TypedName returns the type and name tuple of this plugin instance.
 	TypedName() TypedName
+}
+
+// ConsumerPlugin defines the interface for a consumer.
+type ConsumerPlugin interface {
+	Plugin
 	// Consumes represents data consumed by the plugin.
 	Consumes() map[string]any
 }

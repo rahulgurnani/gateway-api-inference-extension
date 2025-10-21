@@ -56,11 +56,6 @@ func (h *SingleProfileHandler) TypedName() plugins.TypedName {
 	return h.typedName
 }
 
-// Consumes returns the list of data that is consumed by the plugin.
-func (h *SingleProfileHandler) Consumes() map[string]any {
-	return nil
-}
-
 // WithName sets the name of the profile handler.
 func (h *SingleProfileHandler) WithName(name string) *SingleProfileHandler {
 	h.typedName.Name = name

@@ -58,11 +58,6 @@ func (f *HeaderBasedTestingFilter) TypedName() plugins.TypedName {
 	return f.typedName
 }
 
-// Consumes returns the list of data that is consumed by the plugin.
-func (f *HeaderBasedTestingFilter) Consumes() map[string]any {
-	return nil
-}
-
 // WithName sets the name of the filter.
 func (f *HeaderBasedTestingFilter) WithName(name string) *HeaderBasedTestingFilter {
 	f.typedName.Name = name
