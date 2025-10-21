@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"math"
 
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/framework"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
@@ -59,7 +60,7 @@ func (s *QueueScorer) TypedName() plugins.TypedName {
 // Consumes returns the list of data that is consumed by the plugin.
 func (s *QueueScorer) Consumes() map[string]any {
 	return map[string]any{
-		plugins.WaitingQueueSizeKey: int(0),
+		metrics.WaitingQueueSizeKey: int(0),
 	}
 }
 

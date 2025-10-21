@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/framework"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
@@ -27,8 +28,6 @@ import (
 
 const (
 	LoraAffinityScorerType = "lora-affinity-scorer"
-	ActiveModelsKey        = "ActiveModels"
-	WaitingModelsKey       = "WaitingModels"
 )
 
 // compile-time type assertion
@@ -59,8 +58,8 @@ func (s *LoraAffinityScorer) TypedName() plugins.TypedName {
 // Consumes returns the list of data that is consumed by the plugin.
 func (s *LoraAffinityScorer) Consumes() map[string]any {
 	return map[string]any{
-		ActiveModelsKey:  map[string]int{},
-		WaitingModelsKey: map[string]int{},
+		metrics.ActiveModelsKey:  map[string]int{},
+		metrics.WaitingModelsKey: map[string]int{},
 	}
 }
 

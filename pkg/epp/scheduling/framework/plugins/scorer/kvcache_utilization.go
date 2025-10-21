@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/framework"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
@@ -57,7 +58,7 @@ func (s *KVCacheUtilizationScorer) TypedName() plugins.TypedName {
 // Consumes returns the list of data that is consumed by the plugin.
 func (s *KVCacheUtilizationScorer) Consumes() map[string]any {
 	return map[string]any{
-		plugins.KVCacheUsagePercentKey: float64(0),
+		metrics.KVCacheUsagePercentKey: float64(0),
 	}
 }
 

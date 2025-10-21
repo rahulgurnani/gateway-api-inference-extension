@@ -28,7 +28,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer"
-	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 )
 
 const (
@@ -50,12 +50,12 @@ type Extractor struct {
 
 func Produces() map[string]any {
 	return map[string]any{
-		plugins.WaitingQueueSizeKey:    int(0),
-		plugins.KVCacheUsagePercentKey: float64(0),
-		plugins.ActiveModelsKey:        map[string]int{},
-		plugins.WaitingModelsKey:       map[string]int{},
-		plugins.MaxActiveModelsKey:     int(0),
-		plugins.UpdateTimeKey:          time.Time{},
+		metrics.WaitingQueueSizeKey:    int(0),
+		metrics.KVCacheUsagePercentKey: float64(0),
+		metrics.ActiveModelsKey:        map[string]int{},
+		metrics.WaitingModelsKey:       map[string]int{},
+		metrics.MaxActiveModelsKey:     int(0),
+		metrics.UpdateTimeKey:          time.Time{},
 	}
 }
 

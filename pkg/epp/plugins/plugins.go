@@ -16,15 +16,6 @@ limitations under the License.
 
 package plugins
 
-const (
-	KVCacheUsagePercentKey = "KVCacheUsagePercent"
-	WaitingQueueSizeKey    = "WaitingQueueSize"
-	MaxActiveModelsKey     = "MaxActiveModels"
-	ActiveModelsKey        = "ActiveModels"
-	WaitingModelsKey       = "WaitingModels"
-	UpdateTimeKey          = "UpdateTime"
-)
-
 // Plugin defines the interface for a plugin.
 // This interface should be embedded in all plugins across the code.
 type Plugin interface {
