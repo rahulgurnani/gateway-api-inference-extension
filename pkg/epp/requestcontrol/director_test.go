@@ -778,10 +778,6 @@ func (p *testResponseComplete) TypedName() plugins.TypedName {
 	return p.tn
 }
 
-func (p *testResponseComplete) Consumes() map[string]any {
-	return nil
-}
-
 func (p *testResponseReceived) ResponseReceived(_ context.Context, _ *schedulingtypes.LLMRequest, response *Response, targetPod *backend.Pod) {
 	p.lastRespOnResponse = response
 	p.lastTargetPodOnResponse = targetPod.NamespacedName.String()
