@@ -26,13 +26,17 @@ type Plugin interface {
 // ConsumerPlugin defines the interface for a consumer.
 type ConsumerPlugin interface {
 	Plugin
-	// Consumes represents data consumed by the plugin.
+	// Consumes returns data consumed by the plugin.
+	// This is a map from data key (string) produced to
+	// the data type of the key (represented as data with default value casted as any field).
 	Consumes() map[string]any
 }
 
 // ProducerPlugin defines the interface for a producer.
 type ProducerPlugin interface {
 	Plugin
-	// Produces represents data produced by the producer.
+	// Produces returns data produced by the producer.
+	// This is a map from data key (string) produced to
+	// the data type of the key (represented as data with default value casted as any field).
 	Produces() map[string]any
 }
