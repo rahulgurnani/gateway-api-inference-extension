@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
@@ -89,30 +90,8 @@ type Director struct {
 	defaultPriority int
 }
 
-// HandleRequest orchestrates the request lifecycle.
-// It always returns the requestContext even in the error case, as the request context is used in error handling.
-func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestContext) (*handlers.RequestContext, error) {
-	logger := log.FromContext(ctx)
-
-	// Parse Request, Resolve Target Models, and Determine Parameters
-	requestBodyMap := reqCtx.Request.Body
-	var ok bool
-	reqCtx.IncomingModelName, ok = requestBodyMap["model"].(string)
-
-	if !ok {
-		return reqCtx, errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
-	}
-	if reqCtx.TargetModelName == "" {
-		// Default to incoming model name
-		reqCtx.TargetModelName = reqCtx.IncomingModelName
-	}
-	reqCtx.Request.Body["model"] = reqCtx.TargetModelName
-
-	requestBody, err := requtil.ExtractRequestBody(reqCtx.Request.Body)
-	if err != nil {
-		return reqCtx, errutil.Error{Code: errutil.BadRequest, Msg: fmt.Errorf("failed to extract request data: %w", err).Error()}
-	}
-
+// getInferenceObjective creates inferenceObjective based on reqCtx.
+func (d *Director) getInferenceObjective(logger logr.Logger, reqCtx *handlers.RequestContext) *v1alpha2.InferenceObjective {
 	infObjective := d.datastore.ObjectiveGet(reqCtx.ObjectiveKey)
 	if infObjective == nil {
 		logger.V(logutil.VERBOSE).Info("No associated InferenceObjective found, using default", "objectiveKey", reqCtx.ObjectiveKey)
@@ -125,6 +104,45 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 		// Default to 0 if not specified.
 		infObjective.Spec.Priority = &d.defaultPriority
 	}
+	return infObjective
+}
+
+// resolveTargetModel is a helper that resolves targetModel
+// and updates the reqCtx and ctx.
+func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) error {
+	requestBodyMap := reqCtx.Request.Body
+	var ok bool
+	reqCtx.IncomingModelName, ok = requestBodyMap["model"].(string)
+	if !ok {
+		return errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
+	}
+	if reqCtx.TargetModelName == "" {
+		// Default to incoming model name
+		reqCtx.TargetModelName = reqCtx.IncomingModelName
+	}
+	reqCtx.Request.Body["model"] = reqCtx.TargetModelName
+	return nil
+}
+
+// HandleRequest orchestrates the request lifecycle.
+// It always returns the requestContext even in the error case, as the request context is used in error handling.
+func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestContext) (*handlers.RequestContext, error) {
+	logger := log.FromContext(ctx)
+
+	// Resolve target model and update req context.
+	err := d.resolveTargetModel(reqCtx)
+	if err != nil {
+		return reqCtx, err
+	}
+
+	// Parse request body.
+	requestBody, err := requtil.ExtractRequestBody(reqCtx.Request.Body)
+	if err != nil {
+		return reqCtx, errutil.Error{Code: errutil.BadRequest, Msg: fmt.Errorf("failed to extract request data: %w", err).Error()}
+	}
+
+	// Parse inference objective.
+	infObjective := d.getInferenceObjective(logger, reqCtx)
 
 	// Prepare LLMRequest (needed for both saturation detection and Scheduler)
 	reqCtx.SchedulingRequest = &schedulingtypes.LLMRequest{
