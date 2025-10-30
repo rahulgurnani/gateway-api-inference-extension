@@ -57,3 +57,15 @@ type ResponseComplete interface {
 	plugins.Plugin
 	ResponseComplete(ctx context.Context, request *types.LLMRequest, response *Response, targetPod *backend.Pod)
 }
+
+// PrepareData is called by the director before scheduling requests.
+type PrepareData interface {
+	plugins.Plugin
+	PrepareData(ctx context.Context, request *types.LLMRequest, pods []types.Pod)
+}
+
+// AdmitRequest is called by the director after the PrepareData plugins and before scheduling.
+type AdmitRequest interface {
+	plugins.Plugin
+	Admit(ctx context.Context, request *types.LLMRequest, pods []types.Pod) bool
+}

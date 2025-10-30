@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/handlers"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metadata"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 	errutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/error"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
@@ -167,8 +168,18 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 		logger.V(logutil.DEFAULT).Info("Request rejected by admission control", "error", err)
 		return reqCtx, err
 	}
+	copyOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
 
-	result, err := d.scheduler.Schedule(ctx, reqCtx.SchedulingRequest, d.toSchedulerPodMetrics(candidatePods))
+	// Prepare per request data
+	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods)
+
+	// Run admit request plugins
+	if !d.runAdmitRequestPlugins(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods) {
+		logger.V(logutil.DEFAULT).Info("Request cannot be admitted")
+		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "request cannot be admitted"}
+	}
+
+	result, err := d.scheduler.Schedule(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods)
 	if err != nil {
 		return reqCtx, errutil.Error{Code: errutil.InferencePoolResourceExhausted, Msg: fmt.Errorf("failed to find target pod: %w", err).Error()}
 	}
@@ -331,6 +342,29 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 		metrics.RecordPluginProcessingLatency(PreRequestExtensionPoint, plugin.TypedName().Type, plugin.TypedName().Name, time.Since(before))
 		loggerDebug.Info("Completed running PreRequest plugin successfully", "plugin", plugin.TypedName())
 	}
+}
+
+func (d *Director) runPrepareDataPlugins(ctx context.Context,
+	request *schedulingtypes.LLMRequest, pods []types.Pod) {
+	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
+	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
+		loggerDebug.Info("Running PrepareData plugin", "plugin", plugin.TypedName())
+		plugin.PrepareData(ctx, request, pods)
+		loggerDebug.Info("Completed running PrepareData plugin successfully", "plugin", plugin.TypedName())
+	}
+}
+
+func (d *Director) runAdmitRequestPlugins(ctx context.Context,
+	request *schedulingtypes.LLMRequest, pods []types.Pod) bool {
+	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
+	for _, plugin := range d.requestControlPlugins.admitRequestPlugins {
+		loggerDebug.Info("Running AdmitRequest plugin", "plugin", plugin.TypedName())
+		if !plugin.Admit(ctx, request, pods) {
+			return false
+		}
+		loggerDebug.Info("Completed running AdmitRequest plugin successfully", "plugin", plugin.TypedName())
+	}
+	return true
 }
 
 func (d *Director) runResponseReceivedPlugins(ctx context.Context, request *schedulingtypes.LLMRequest, response *Response, targetPod *backend.Pod) {
