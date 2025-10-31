@@ -91,7 +91,7 @@ type Director struct {
 	defaultPriority int
 }
 
-// getInferenceObjective creates inferenceObjective based on reqCtx.
+// getInferenceObjective fetches the inferenceObjective from the datastore otherwise creates a new one based on reqCtx.
 func (d *Director) getInferenceObjective(logger logr.Logger, reqCtx *handlers.RequestContext) *v1alpha2.InferenceObjective {
 	infObjective := d.datastore.ObjectiveGet(reqCtx.ObjectiveKey)
 	if infObjective == nil {
@@ -109,7 +109,7 @@ func (d *Director) getInferenceObjective(logger logr.Logger, reqCtx *handlers.Re
 }
 
 // resolveTargetModel is a helper that resolves targetModel
-// and updates the reqCtx and ctx.
+// and updates the reqCtx.
 func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) error {
 	requestBodyMap := reqCtx.Request.Body
 	var ok bool
@@ -168,18 +168,19 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 		logger.V(logutil.DEFAULT).Info("Request rejected by admission control", "error", err)
 		return reqCtx, err
 	}
-	copyOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
+	snapshotOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
 
 	// Prepare per request data
-	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods)
+	// TODO(rahulgurnani): Add retries and timeout in the preparedata step.
+	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
 
 	// Run admit request plugins
-	if !d.runAdmitRequestPlugins(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods) {
+	if !d.runAdmitRequestPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
 		logger.V(logutil.DEFAULT).Info("Request cannot be admitted")
 		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "request cannot be admitted"}
 	}
 
-	result, err := d.scheduler.Schedule(ctx, reqCtx.SchedulingRequest, copyOfCandidatePods)
+	result, err := d.scheduler.Schedule(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
 	if err != nil {
 		return reqCtx, errutil.Error{Code: errutil.InferencePoolResourceExhausted, Msg: fmt.Errorf("failed to find target pod: %w", err).Error()}
 	}

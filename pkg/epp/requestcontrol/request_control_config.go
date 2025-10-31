@@ -70,6 +70,18 @@ func (c *Config) WithResponseCompletePlugins(plugins ...ResponseComplete) *Confi
 	return c
 }
 
+// WithPrepareDataPlugins sets the given plugins as the PrepareData plugins.
+func (c *Config) WithPrepareDataPlugins(plugins ...PrepareData) *Config {
+	c.prepareDataPlugins = plugins
+	return c
+}
+
+// WithAdmitRequestPlugins sets the given plugins as the AdmitRequest plugins.
+func (c *Config) WithAdmitRequestPlugins(plugins ...AdmitRequest) *Config {
+	c.admitRequestPlugins = plugins
+	return c
+}
+
 // AddPlugins adds the given plugins to the Config.
 // The type of each plugin is checked and added to the corresponding list of plugins in the Config.
 // If a plugin implements multiple plugin interfaces, it will be added to each corresponding list.
