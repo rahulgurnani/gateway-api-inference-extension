@@ -69,5 +69,6 @@ type PrepareData interface {
 // AdmitRequest plugin is implemented by plugins for admission control. These plugins need to implement Admit method.
 type AdmitRequest interface {
 	plugins.Plugin
-	Admit(ctx context.Context, request *types.LLMRequest, pods []types.Pod) bool
+	// Admit returns the denial reason if the request is denied. If the request is allowed, it returns an empty string.
+	Admit(ctx context.Context, request *types.LLMRequest, pods []types.Pod) string
 }
