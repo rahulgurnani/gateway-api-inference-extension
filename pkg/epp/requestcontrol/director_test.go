@@ -127,9 +127,9 @@ func (m *mockAdmitRequestPlugins) TypedName() plugins.TypedName {
 	return m.tn
 }
 
-func (m *mockAdmitRequestPlugins) Admit(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) bool {
+func (m *mockAdmitRequestPlugins) Admit(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) string {
 	m.admitRequestCalled = true
-	return true
+	return ""
 }
 
 func TestDirector_HandleRequest(t *testing.T) {

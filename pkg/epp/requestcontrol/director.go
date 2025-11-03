@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1 "sigs.k8s.io/gateway-api-inference-extension/api/v1"
@@ -92,10 +91,10 @@ type Director struct {
 }
 
 // getInferenceObjective fetches the inferenceObjective from the datastore otherwise creates a new one based on reqCtx.
-func (d *Director) getInferenceObjective(logger logr.Logger, reqCtx *handlers.RequestContext) *v1alpha2.InferenceObjective {
+func (d *Director) getInferenceObjective(ctx context.Context, reqCtx *handlers.RequestContext) *v1alpha2.InferenceObjective {
 	infObjective := d.datastore.ObjectiveGet(reqCtx.ObjectiveKey)
 	if infObjective == nil {
-		logger.V(logutil.VERBOSE).Info("No associated InferenceObjective found, using default", "objectiveKey", reqCtx.ObjectiveKey)
+		log.FromContext(ctx).V(logutil.VERBOSE).Info("No associated InferenceObjective found, using default", "objectiveKey", reqCtx.ObjectiveKey)
 		infObjective = &v1alpha2.InferenceObjective{
 			Spec: v1alpha2.InferenceObjectiveSpec{
 				Priority: &d.defaultPriority,
@@ -108,8 +107,7 @@ func (d *Director) getInferenceObjective(logger logr.Logger, reqCtx *handlers.Re
 	return infObjective
 }
 
-// resolveTargetModel is a helper that resolves targetModel
-// and updates the reqCtx.
+// resolveTargetModel is a helper to update reqCtx with target model based on request.
 func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) error {
 	requestBodyMap := reqCtx.Request.Body
 	var ok bool
@@ -143,7 +141,7 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	}
 
 	// Parse inference objective.
-	infObjective := d.getInferenceObjective(logger, reqCtx)
+	infObjective := d.getInferenceObjective(ctx, reqCtx)
 
 	// Prepare LLMRequest (needed for both saturation detection and Scheduler)
 	reqCtx.SchedulingRequest = &schedulingtypes.LLMRequest{
@@ -163,7 +161,7 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	if len(candidatePods) == 0 {
 		return reqCtx, errutil.Error{Code: errutil.ServiceUnavailable, Msg: "failed to find candidate pods for serving the request"}
 	}
-
+	// TODO(rahulgurnani/lukevandrie): Perhaps, refactor/implement Admit plugin for Admission control.
 	if err := d.admissionController.Admit(ctx, reqCtx, candidatePods, *infObjective.Spec.Priority); err != nil {
 		logger.V(logutil.DEFAULT).Info("Request rejected by admission control", "error", err)
 		return reqCtx, err
@@ -360,7 +358,8 @@ func (d *Director) runAdmitRequestPlugins(ctx context.Context,
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	for _, plugin := range d.requestControlPlugins.admitRequestPlugins {
 		loggerDebug.Info("Running AdmitRequest plugin", "plugin", plugin.TypedName())
-		if !plugin.Admit(ctx, request, pods) {
+		if denyReason := plugin.Admit(ctx, request, pods); denyReason != "" {
+			loggerDebug.Info("AdmitRequest plugin denied the request", "plugin", plugin.TypedName(), "reason", denyReason)
 			return false
 		}
 		loggerDebug.Info("Completed running AdmitRequest plugin successfully", "plugin", plugin.TypedName())

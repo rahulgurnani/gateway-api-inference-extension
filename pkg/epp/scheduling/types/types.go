@@ -254,7 +254,7 @@ type Cloneable interface {
 
 // AttributeMap is used to store flexible metadata or traits
 // across different aspects of an inference server.
-// Stored values must be Cloneable.
+// Stored values must be Cloneable. This is a per-request snapshot of the attributes.
 type AttributeMap interface {
 	Put(string, Cloneable)
 	Get(string) (Cloneable, bool)
@@ -288,18 +288,6 @@ func (a *Attributes) Get(key string) (Cloneable, bool) {
 		return cloneable.Clone(), true
 	}
 	return nil, false
-}
-
-// Keys returns all keys in the attribute map.
-func (a *Attributes) Keys() []string {
-	var keys []string
-	a.data.Range(func(key, _ any) bool {
-		if sk, ok := key.(string); ok {
-			keys = append(keys, sk)
-		}
-		return true
-	})
-	return keys
 }
 
 // Clone creates a deep copy of the entire attribute map.
