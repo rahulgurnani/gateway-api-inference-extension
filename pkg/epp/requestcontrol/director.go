@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -40,6 +41,11 @@ import (
 	errutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/error"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
 	requtil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/request"
+)
+
+const (
+	prepareDataTimeout    = 200 * time.Millisecond
+	prepareDataMaxRetries = 3
 )
 
 // Datastore defines the interface required by the Director.
@@ -108,19 +114,19 @@ func (d *Director) getInferenceObjective(ctx context.Context, reqCtx *handlers.R
 }
 
 // resolveTargetModel is a helper to update reqCtx with target model based on request.
-func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) error {
+func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) (*handlers.RequestContext, error) {
 	requestBodyMap := reqCtx.Request.Body
 	var ok bool
 	reqCtx.IncomingModelName, ok = requestBodyMap["model"].(string)
 	if !ok {
-		return errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
+		return nil, errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
 	}
 	if reqCtx.TargetModelName == "" {
 		// Default to incoming model name
 		reqCtx.TargetModelName = reqCtx.IncomingModelName
 	}
 	reqCtx.Request.Body["model"] = reqCtx.TargetModelName
-	return nil
+	return reqCtx, nil
 }
 
 // HandleRequest orchestrates the request lifecycle.
@@ -129,7 +135,7 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	logger := log.FromContext(ctx)
 
 	// Resolve target model and update req context.
-	err := d.resolveTargetModel(reqCtx)
+	reqCtx, err := d.resolveTargetModel(reqCtx)
 	if err != nil {
 		return reqCtx, err
 	}
@@ -161,15 +167,13 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	if len(candidatePods) == 0 {
 		return reqCtx, errutil.Error{Code: errutil.ServiceUnavailable, Msg: "failed to find candidate pods for serving the request"}
 	}
-	// TODO(rahulgurnani/lukevandrie): Perhaps, refactor/implement Admit plugin for Admission control.
 	if err := d.admissionController.Admit(ctx, reqCtx, candidatePods, *infObjective.Spec.Priority); err != nil {
 		logger.V(logutil.DEFAULT).Info("Request rejected by admission control", "error", err)
 		return reqCtx, err
 	}
 	snapshotOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
 
-	// Prepare per request data
-	// TODO(rahulgurnani): Add retries and timeout in the preparedata step.
+	// Prepare per request data by running PrepareData plugins.
 	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
 
 	// Run admit request plugins
@@ -343,14 +347,45 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
+// prepareData runs the PrepareData plugin with retries and timeout.
+func prepareData(plugin PrepareData, ctx context.Context, request *schedulingtypes.LLMRequest, pods []types.Pod) {
+	currentTimeout := prepareDataTimeout
+	for i := 0; i <= prepareDataMaxRetries; i++ {
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			plugin.PrepareData(ctx, request, pods)
+		}()
+
+		select {
+		case <-done:
+			// Plugin executed successfully
+			return
+		case <-time.After(currentTimeout):
+			log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin timed out, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "timeout", currentTimeout)
+			if i == prepareDataMaxRetries {
+				log.FromContext(ctx).Error(nil, "PrepareData plugin failed after multiple retries", "plugin", plugin.TypedName())
+				return
+			}
+		}
+	}
+}
+
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []types.Pod) {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
+	// Parallely execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
+	// Failure in any prepareData doesn't block the request processing.
+	var wg sync.WaitGroup
 	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
 		loggerDebug.Info("Running PrepareData plugin", "plugin", plugin.TypedName())
-		plugin.PrepareData(ctx, request, pods)
-		loggerDebug.Info("Completed running PrepareData plugin successfully", "plugin", plugin.TypedName())
+		wg.Add(1)
+		go func(p PrepareData) {
+			defer wg.Done()
+			prepareData(p, ctx, request, pods)
+		}(plugin)
 	}
+	wg.Wait()
 }
 
 func (d *Director) runAdmitRequestPlugins(ctx context.Context,
