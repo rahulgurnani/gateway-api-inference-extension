@@ -119,7 +119,7 @@ func (d *Director) resolveTargetModel(reqCtx *handlers.RequestContext) (*handler
 	var ok bool
 	reqCtx.IncomingModelName, ok = requestBodyMap["model"].(string)
 	if !ok {
-		return nil, errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
+		return reqCtx, errutil.Error{Code: errutil.BadRequest, Msg: "model not found in request body"}
 	}
 	if reqCtx.TargetModelName == "" {
 		// Default to incoming model name
@@ -347,14 +347,14 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
-// prepareData runs the PrepareData plugin with retries and timeout.
-func prepareData(plugin PrepareData, ctx context.Context, request *schedulingtypes.LLMRequest, pods []types.Pod) {
+// prepareData executes the PrepareRequestData plugins with retries and timeout.
+func prepareData(plugin DataProducer, ctx context.Context, request *schedulingtypes.LLMRequest, pods []types.Pod) {
 	currentTimeout := prepareDataTimeout
 	for i := 0; i <= prepareDataMaxRetries; i++ {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
-			plugin.PrepareData(ctx, request, pods)
+			plugin.PrepareRequestData(ctx, request, pods)
 		}()
 
 		select {
@@ -377,10 +377,10 @@ func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	// Parallely execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
 	// Failure in any prepareData doesn't block the request processing.
 	var wg sync.WaitGroup
-	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
+	for _, plugin := range d.requestControlPlugins.dataProducerPlugins {
 		loggerDebug.Info("Running PrepareData plugin", "plugin", plugin.TypedName())
 		wg.Add(1)
-		go func(p PrepareData) {
+		go func(p DataProducer) {
 			defer wg.Done()
 			prepareData(p, ctx, request, pods)
 		}(plugin)
@@ -393,8 +393,8 @@ func (d *Director) runAdmitRequestPlugins(ctx context.Context,
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	for _, plugin := range d.requestControlPlugins.admitRequestPlugins {
 		loggerDebug.Info("Running AdmitRequest plugin", "plugin", plugin.TypedName())
-		if denyReason := plugin.Admit(ctx, request, pods); denyReason != "" {
-			loggerDebug.Info("AdmitRequest plugin denied the request", "plugin", plugin.TypedName(), "reason", denyReason)
+		if denyReason := plugin.AdmitRequest(ctx, request, pods); denyReason != nil {
+			loggerDebug.Info("AdmitRequest plugin denied the request", "plugin", plugin.TypedName(), "reason", denyReason.Error())
 			return false
 		}
 		loggerDebug.Info("Completed running AdmitRequest plugin successfully", "plugin", plugin.TypedName())

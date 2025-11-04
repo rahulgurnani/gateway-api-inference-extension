@@ -93,23 +93,27 @@ func (ds *mockDatastore) PodList(predicate func(backendmetrics.PodMetrics) bool)
 	return res
 }
 
-type mockPrepareRequestDataPlugin struct {
-	tn                plugins.TypedName
-	prepareDataCalled bool
+type mockDataProducerPlugin struct {
+	tn                       plugins.TypedName
+	prepareRequestDataCalled bool
 }
 
-func newmockPrepareRequestDataPlugin(name string) *mockPrepareRequestDataPlugin {
-	return &mockPrepareRequestDataPlugin{
+func newmockDataProducerPlugin(name string) *mockDataProducerPlugin {
+	return &mockDataProducerPlugin{
 		tn: plugins.TypedName{Type: "mock-prepare-request-data", Name: name},
 	}
 }
 
-func (m *mockPrepareRequestDataPlugin) TypedName() plugins.TypedName {
+func (m *mockDataProducerPlugin) TypedName() plugins.TypedName {
 	return m.tn
 }
 
-func (m *mockPrepareRequestDataPlugin) PrepareData(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
-	m.prepareDataCalled = true
+func (m *mockDataProducerPlugin) Produces() map[string]any {
+	return map[string]any{}
+}
+
+func (m *mockDataProducerPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
+	m.prepareRequestDataCalled = true
 }
 
 type mockAdmitRequestPlugins struct {
@@ -127,9 +131,9 @@ func (m *mockAdmitRequestPlugins) TypedName() plugins.TypedName {
 	return m.tn
 }
 
-func (m *mockAdmitRequestPlugins) Admit(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) string {
+func (m *mockAdmitRequestPlugins) AdmitRequest(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
 	m.admitRequestCalled = true
-	return ""
+	return nil
 }
 
 func TestDirector_HandleRequest(t *testing.T) {
@@ -241,19 +245,19 @@ func TestDirector_HandleRequest(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                    string
-		reqBodyMap              map[string]any
-		mockAdmissionController *mockAdmissionController
-		inferenceObjectiveName  string
-		schedulerMockSetup      func(m *mockScheduler)
-		wantErrCode             string                   // Expected errutil code string
-		wantReqCtx              *handlers.RequestContext // Fields to check in the returned RequestContext
-		wantMutatedBodyModel    string                   // Expected model in reqCtx.Request.Body after PostDispatch
-		targetModelName         string                   // Expected model name after target model resolution
-		prepareDataCalled       bool
-		admitRequestCalled      bool
-		prepareDataPlugins      *mockPrepareRequestDataPlugin
-		admitRequestPlugins     *mockAdmitRequestPlugins
+		name                     string
+		reqBodyMap               map[string]any
+		mockAdmissionController  *mockAdmissionController
+		inferenceObjectiveName   string
+		schedulerMockSetup       func(m *mockScheduler)
+		wantErrCode              string                   // Expected errutil code string
+		wantReqCtx               *handlers.RequestContext // Fields to check in the returned RequestContext
+		wantMutatedBodyModel     string                   // Expected model in reqCtx.Request.Body after PostDispatch
+		targetModelName          string                   // Expected model name after target model resolution
+		prepareRequestDataCalled bool
+		admitRequestCalled       bool
+		dataProducerPlugins      *mockDataProducerPlugin
+		admitRequestPlugins      *mockAdmitRequestPlugins
 	}{
 		{
 			name: "successful completions request",
@@ -333,10 +337,10 @@ func TestDirector_HandleRequest(t *testing.T) {
 				},
 				TargetEndpoint: "192.168.1.100:8000,192.168.2.100:8000,192.168.4.100:8000",
 			},
-			wantMutatedBodyModel: model,
-			targetModelName:      model,
-			prepareDataCalled:    true,
-			prepareDataPlugins:   newmockPrepareRequestDataPlugin("test-plugin"),
+			wantMutatedBodyModel:     model,
+			targetModelName:          model,
+			prepareRequestDataCalled: true,
+			dataProducerPlugins:      newmockDataProducerPlugin("test-plugin"),
 		},
 		{
 			name: "successful chat completions request with admit request plugins",
@@ -518,8 +522,8 @@ func TestDirector_HandleRequest(t *testing.T) {
 				test.schedulerMockSetup(mockSched)
 			}
 			config := NewConfig()
-			if test.prepareDataPlugins != nil {
-				config = config.WithPrepareDataPlugins(test.prepareDataPlugins)
+			if test.dataProducerPlugins != nil {
+				config = config.WithDataProducers(test.dataProducerPlugins)
 			}
 			if test.admitRequestPlugins != nil {
 				config = config.WithAdmitRequestPlugins(test.admitRequestPlugins)
@@ -569,10 +573,10 @@ func TestDirector_HandleRequest(t *testing.T) {
 					"Mutated reqCtx.Request.Body model mismatch")
 			}
 			if test.admitRequestPlugins != nil {
-				assert.True(t, test.admitRequestPlugins.admitRequestCalled, "AdmitRequestPlugins not called")
+				assert.True(t, test.admitRequestPlugins.admitRequestCalled, "AdmitRequest not called")
 			}
-			if test.prepareDataPlugins != nil {
-				assert.True(t, test.prepareDataPlugins.prepareDataCalled, "PrepareDataPlugins not called")
+			if test.dataProducerPlugins != nil {
+				assert.True(t, test.dataProducerPlugins.prepareRequestDataCalled, "PrepareRequestData not called")
 			}
 		})
 	}
