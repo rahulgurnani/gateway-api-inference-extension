@@ -21,10 +21,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/backend"
 	backendmetrics "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/backend/metrics"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer"
 )
 
 const nilString = "<nil>"
@@ -192,8 +192,8 @@ type Pod interface {
 	GetPod() *backend.Pod
 	GetMetrics() *backendmetrics.MetricsState
 	String() string
-	Put(key string, value Cloneable)
-	Get(key string) (Cloneable, bool)
+	Get(string) (datalayer.Cloneable, bool)
+	Put(string, datalayer.Cloneable)
 	Keys() []string
 }
 
@@ -221,19 +221,7 @@ func (pm *PodMetrics) GetMetrics() *backendmetrics.MetricsState {
 type PodMetrics struct {
 	*backend.Pod
 	*backendmetrics.MetricsState
-	AttributeMap
-}
-
-func (pm *PodMetrics) Put(key string, value Cloneable) {
-	pm.AttributeMap.Put(key, value)
-}
-
-func (pm *PodMetrics) Get(key string) (Cloneable, bool) {
-	return pm.AttributeMap.Get(key)
-}
-
-func (pm *PodMetrics) Keys() []string {
-	return pm.AttributeMap.Keys()
+	datalayer.AttributeMap
 }
 
 // ProfileRunResult captures the profile run result.
@@ -250,56 +238,4 @@ type SchedulingResult struct {
 // Cloneable types support cloning of the value.
 type Cloneable interface {
 	Clone() Cloneable
-}
-
-// AttributeMap is used to store flexible metadata or traits
-// across different aspects of an inference server.
-// Stored values must be Cloneable. This is a per-request snapshot of the attributes.
-type AttributeMap interface {
-	Put(string, Cloneable)
-	Get(string) (Cloneable, bool)
-	Keys() []string
-}
-
-// Attributes provides a goroutine-safe implementation of AttributeMap.
-type Attributes struct {
-	data sync.Map // key: attribute name (string), value: attribute value (opaque, Cloneable)
-}
-
-// NewAttributes returns a new instance of Attributes.
-func NewAttributes() *Attributes {
-	return &Attributes{}
-}
-
-// Put adds or updates an attribute in the map.
-func (a *Attributes) Put(key string, value Cloneable) {
-	if value != nil {
-		a.data.Store(key, value) // TODO: Clone into map to ensure isolation
-	}
-}
-
-// Get retrieves an attribute by key, returning a cloned copy.
-func (a *Attributes) Get(key string) (Cloneable, bool) {
-	val, ok := a.data.Load(key)
-	if !ok {
-		return nil, false
-	}
-	if cloneable, ok := val.(Cloneable); ok {
-		return cloneable.Clone(), true
-	}
-	return nil, false
-}
-
-// Clone creates a deep copy of the entire attribute map.
-func (a *Attributes) Clone() *Attributes {
-	clone := NewAttributes()
-	a.data.Range(func(key, value any) bool {
-		if sk, ok := key.(string); ok {
-			if v, ok := value.(Cloneable); ok {
-				clone.Put(sk, v)
-			}
-		}
-		return true
-	})
-	return clone
 }

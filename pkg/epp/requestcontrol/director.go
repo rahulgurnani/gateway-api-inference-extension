@@ -33,10 +33,10 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/apix/v1alpha2"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/backend"
 	backendmetrics "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/backend/metrics"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/handlers"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metadata"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
-	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 	errutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/error"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/util/logging"
@@ -174,10 +174,11 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	snapshotOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
 
 	// Prepare per request data by running PrepareData plugins.
+	// NOTE: Failure in prepare data plugins does not block the request processing.
 	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
 
 	// Run admit request plugins
-	if !d.runAdmitRequestPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
+	if !d.withAdmissionPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
 		logger.V(logutil.DEFAULT).Info("Request cannot be admitted")
 		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "request cannot be admitted"}
 	}
@@ -276,7 +277,11 @@ func (d *Director) prepareRequest(ctx context.Context, reqCtx *handlers.RequestC
 func (d *Director) toSchedulerPodMetrics(pods []backendmetrics.PodMetrics) []schedulingtypes.Pod {
 	pm := make([]schedulingtypes.Pod, len(pods))
 	for i, pod := range pods {
-		pm[i] = &schedulingtypes.PodMetrics{Pod: pod.GetPod().Clone(), MetricsState: pod.GetMetrics().Clone()}
+		if pod.GetAttributes() != nil {
+			pm[i] = &schedulingtypes.PodMetrics{Pod: pod.GetPod().Clone(), MetricsState: pod.GetMetrics().Clone(), AttributeMap: pod.GetAttributes().Clone()}
+		} else {
+			pm[i] = &schedulingtypes.PodMetrics{Pod: pod.GetPod().Clone(), MetricsState: pod.GetMetrics().Clone(), AttributeMap: datalayer.NewAttributes()}
+		}
 	}
 
 	return pm
@@ -348,7 +353,7 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 }
 
 // prepareData executes the PrepareRequestData plugins with retries and timeout.
-func prepareData(plugin DataProducer, ctx context.Context, request *schedulingtypes.LLMRequest, pods []types.Pod) {
+func prepareData(plugin DataProducer, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
 	currentTimeout := prepareDataTimeout
 	for i := 0; i <= prepareDataMaxRetries; i++ {
 		done := make(chan struct{})
@@ -372,9 +377,9 @@ func prepareData(plugin DataProducer, ctx context.Context, request *schedulingty
 }
 
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
-	request *schedulingtypes.LLMRequest, pods []types.Pod) {
+	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
-	// Parallely execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
+	// Parallelly execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
 	// Failure in any prepareData doesn't block the request processing.
 	var wg sync.WaitGroup
 	for _, plugin := range d.requestControlPlugins.dataProducerPlugins {
@@ -388,10 +393,10 @@ func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	wg.Wait()
 }
 
-func (d *Director) runAdmitRequestPlugins(ctx context.Context,
-	request *schedulingtypes.LLMRequest, pods []types.Pod) bool {
+func (d *Director) withAdmissionPlugins(ctx context.Context,
+	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) bool {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
-	for _, plugin := range d.requestControlPlugins.admitRequestPlugins {
+	for _, plugin := range d.requestControlPlugins.admissionPlugins {
 		loggerDebug.Info("Running AdmitRequest plugin", "plugin", plugin.TypedName())
 		if denyReason := plugin.AdmitRequest(ctx, request, pods); denyReason != nil {
 			loggerDebug.Info("AdmitRequest plugin denied the request", "plugin", plugin.TypedName(), "reason", denyReason.Error())
