@@ -353,7 +353,7 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 }
 
 // prepareData executes the PrepareRequestData plugins with retries and timeout.
-func prepareData(plugin DataProducer, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
+func prepareData(plugin PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
 	currentTimeout := prepareDataTimeout
 	for i := 0; i <= prepareDataMaxRetries; i++ {
 		done := make(chan struct{})
@@ -376,16 +376,46 @@ func prepareData(plugin DataProducer, ctx context.Context, request *schedulingty
 	}
 }
 
+func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) []PrepareDataPlugin {
+	// Build the DAG
+	// TODO: Perform the error validation on the startup.
+	dag, _ := prepareDataGraph(plugins)
+
+	// Initialize channels and nameToNode map
+	pluginExecuted := map[string]chan struct{}{}
+	nameToNode := map[string]PrepareDataPlugin{}
+	for _, plugin := range plugins {
+		pluginExecuted[plugin.TypedName().String()] = make(chan struct{})
+		nameToNode[plugin.TypedName().String()] = plugin
+	}
+
+	for pluginName, dependents := range dag {
+		// Execute plugins based on dependencies.
+		//  Wait for the dependencies to complete before executing a plugin.
+		go func() {
+			for _, dep := range dependents {
+				<-pluginExecuted[dep]
+			}
+			nameToNode[pluginName].PrepareRequestData(ctx, request, pods)
+			// Signal that the plugin has been executed.
+			<-pluginExecuted[pluginName]
+		}()
+	}
+	return plugins
+}
+
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
+	d.executePluginsAsDAG(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	// Parallelly execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
 	// Failure in any prepareData doesn't block the request processing.
 	var wg sync.WaitGroup
-	for _, plugin := range d.requestControlPlugins.dataProducerPlugins {
+
+	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
 		loggerDebug.Info("Running PrepareData plugin", "plugin", plugin.TypedName())
 		wg.Add(1)
-		go func(p DataProducer) {
+		go func(p PrepareDataPlugin) {
 			defer wg.Done()
 			prepareData(p, ctx, request, pods)
 		}(plugin)

@@ -105,27 +105,12 @@ func (ds *mockDatastore) PodList(predicate func(backendmetrics.PodMetrics) bool)
 	return res
 }
 
-type mockDataProducerPlugin struct {
-	tn plugins.TypedName
-}
-
-func newMockDataProducerPlugin(name string) *mockDataProducerPlugin {
-	return &mockDataProducerPlugin{
-		tn: plugins.TypedName{Type: "mock-prepare-request-data", Name: name},
+func newMockPrepareDataPlugin(name string) *mockPrepareDataPlugin {
+	return &mockPrepareDataPlugin{
+		name:     name,
+		produces: map[string]any{mockProducedDataKey: 0},
+		consumes: map[string]any{},
 	}
-}
-
-func (m *mockDataProducerPlugin) TypedName() plugins.TypedName {
-	return m.tn
-}
-
-func (m *mockDataProducerPlugin) Produces() map[string]any {
-	// Produces data of type int, 0 denotes it is int.
-	return map[string]any{mockProducedDataKey: 0}
-}
-
-func (m *mockDataProducerPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
-	pods[0].Put(mockProducedDataKey, mockProducedDataType{value: 42})
 }
 
 type mockAdmissionPlugin struct {
@@ -280,7 +265,7 @@ func TestDirector_HandleRequest(t *testing.T) {
 		wantMutatedBodyModel    string                   // Expected model in reqCtx.Request.Body after PostDispatch
 		targetModelName         string                   // Expected model name after target model resolution
 		admitRequestCalled      bool
-		dataProducerPlugin      *mockDataProducerPlugin
+		prepareDataPlugin       *mockPrepareDataPlugin
 		admissionPlugin         *mockAdmissionPlugin
 	}{
 		{
@@ -364,7 +349,7 @@ func TestDirector_HandleRequest(t *testing.T) {
 			},
 			wantMutatedBodyModel: model,
 			targetModelName:      model,
-			dataProducerPlugin:   newMockDataProducerPlugin("test-plugin"),
+			prepareDataPlugin:    newMockPrepareDataPlugin("test-plugin"),
 		},
 		{
 			name: "successful chat completions request with admit request plugins",
@@ -546,8 +531,8 @@ func TestDirector_HandleRequest(t *testing.T) {
 				test.schedulerMockSetup(mockSched)
 			}
 			config := NewConfig()
-			if test.dataProducerPlugin != nil {
-				config = config.WithDataProducers(test.dataProducerPlugin)
+			if test.prepareDataPlugin != nil {
+				config = config.WithPrepareDataPlugins(test.prepareDataPlugin)
 			}
 			if test.admissionPlugin != nil {
 				config = config.WithAdmissionPlugins(test.admissionPlugin)

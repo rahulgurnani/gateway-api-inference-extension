@@ -59,9 +59,10 @@ type ResponseComplete interface {
 }
 
 // PrepareRequestData is called by the director before scheduling requests.
-// DataProducer plugin is implemented by data producers which produce data from different sources.
-type DataProducer interface {
+// PrepareDataPlugin plugin is implemented by data producers which produce data from different sources.
+type PrepareDataPlugin interface {
 	plugins.ProducerPlugin
+	plugins.ConsumerPlugin
 	PrepareRequestData(ctx context.Context, request *types.LLMRequest, pods []types.Pod)
 }
 
