@@ -175,7 +175,9 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 
 	// Prepare per request data by running PrepareData plugins.
 	// NOTE: Failure in prepare data plugins does not block the request processing.
-	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
+	if d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) != nil {
+		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "failed to prepare request data"}
+	}
 
 	// Run admit request plugins
 	if !d.withAdmissionPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
@@ -376,11 +378,15 @@ func prepareData(plugin PrepareDataPlugin, ctx context.Context, request *schedul
 	}
 }
 
-func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) []PrepareDataPlugin {
+func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) error {
 	// Build the DAG
-	// TODO: Perform the error validation on the startup.
-	dag, _ := prepareDataGraph(plugins)
+	// The error validation happens on startup when loading the config. So, here there should not be any error.
+	dag, err := prepareDataGraph(plugins)
+	if err != nil {
+		return err
+	}
 
+	// Execute the DAG
 	// Initialize channels and nameToNode map
 	pluginExecuted := map[string]chan struct{}{}
 	nameToNode := map[string]PrepareDataPlugin{}
@@ -401,12 +407,16 @@ func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingt
 			<-pluginExecuted[pluginName]
 		}()
 	}
-	return plugins
+	return nil
 }
 
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
-	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
-	d.executePluginsAsDAG(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
+	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
+	err := d.executePluginsAsDAG(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "failed to execute PrepareData plugins as DAG, falling back to parallel execution")
+		return err
+	}
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	// Parallelly execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
 	// Failure in any prepareData doesn't block the request processing.
@@ -421,6 +431,7 @@ func (d *Director) runPrepareDataPlugins(ctx context.Context,
 		}(plugin)
 	}
 	wg.Wait()
+	return nil
 }
 
 func (d *Director) withAdmissionPlugins(ctx context.Context,
