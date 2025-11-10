@@ -378,6 +378,9 @@ func prepareData(plugin PrepareDataPlugin, ctx context.Context, request *schedul
 	}
 }
 
+// executePluginsAsDAG executes PrepareData plugins as a DAG based on their dependencies asynchronously.
+// So, a plugin is executed only after all its dependencies have been executed.
+// If there is a cycle or other error in the DAG, it returns an error.
 func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) error {
 	// Build the DAG
 	// The error validation happens on startup when loading the config. So, here there should not be any error.

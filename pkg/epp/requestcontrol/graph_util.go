@@ -50,7 +50,8 @@ func buildDAG(plugins []PrepareDataPlugin) map[string][]string {
 	return dag
 }
 
-// Where will we call prepareData from? How will the data be actually fetched? Can we put the data in DependencyNode?
+// prepareDataGraph builds a DAG of data preparation plugins and checks for cycles.
+// If there is a cycle, it returns an error.
 func prepareDataGraph(plugins []PrepareDataPlugin) (map[string][]string, error) {
 	nameToNode := map[string]PrepareDataPlugin{}
 
