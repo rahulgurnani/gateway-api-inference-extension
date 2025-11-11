@@ -106,6 +106,29 @@ func (ds *mockDatastore) PodList(predicate func(backendmetrics.PodMetrics) bool)
 	return res
 }
 
+type mockPrepareDataPlugin struct {
+	name     string
+	produces map[string]any
+	consumes map[string]any
+}
+
+func (m *mockPrepareDataPlugin) TypedName() plugins.TypedName {
+	return plugins.TypedName{Name: m.name, Type: "mock"}
+}
+
+func (m *mockPrepareDataPlugin) Produces() map[string]any {
+	return m.produces
+}
+
+func (m *mockPrepareDataPlugin) Consumes() map[string]any {
+	return m.consumes
+}
+
+func (m *mockPrepareDataPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
+	pods[0].Put(mockProducedDataKey, mockProducedDataType{value: 42})
+	return nil
+}
+
 func newMockPrepareDataPlugin(name string) *mockPrepareDataPlugin {
 	return &mockPrepareDataPlugin{
 		name:     name,

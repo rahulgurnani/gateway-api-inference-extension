@@ -173,7 +173,6 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 	snapshotOfCandidatePods := d.toSchedulerPodMetrics(candidatePods)
 
 	// Prepare per request data by running PrepareData plugins.
-	// NOTE: Failure in prepare data plugins does not block the request processing.
 	if d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) != nil {
 		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "failed to prepare request data"}
 	}
