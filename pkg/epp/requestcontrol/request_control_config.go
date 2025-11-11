@@ -104,3 +104,12 @@ func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 		}
 	}
 }
+
+// ValidatePrepareDataPlugins validates the PrepareData plugins in the Config.
+// It builds the data dependency graph and checks for cycles.
+// If a cycle is detected, it returns an error.
+func (c *Config) ValidatePrepareDataPlugins() error {
+	_, err := prepareDataGraph(c.prepareDataPlugins)
+
+	return err
+}
