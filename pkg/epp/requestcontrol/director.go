@@ -353,13 +353,92 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
-// TODO: Execute plugins in parallel once DAG execution is supported.
-// runPrepareDataPlugins executes PrepareDataPlugins sequentially.
+// executePluginsAsDAG executes PrepareData plugins as a DAG based on their dependencies asynchronously.
+// So, a plugin is executed only after all its dependencies have been executed.
+// If there is a cycle or other error in the DAG, it returns an error.
+func (d *Director) executePluginsAsDAG(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) error {
+	// Build the DAG
+	// The error validation happens on startup when loading the config. So, here there should not be any error.
+	dag, err := prepareDataGraph(plugins)
+	if err != nil {
+		return err
+	}
+	// Execute the DAG
+
+	// Channels to signal plugin execution completion.
+	pluginExecuted := make(map[string]chan error)
+	nameToNode := map[string]PrepareDataPlugin{}
+	for _, plugin := range plugins {
+		pluginExecuted[plugin.TypedName().String()] = make(chan error)
+		nameToNode[plugin.TypedName().String()] = plugin
+	}
+
+	for pluginName, dependents := range dag {
+		// Execute plugins based on dependencies.
+		//  Wait for the dependencies to complete before executing a plugin.
+		go func() {
+			for _, dep := range dependents {
+				err, open := <-pluginExecuted[dep]
+				if !open {
+					continue
+				}
+				if err != nil {
+					// If a dependency failed, propagate the error and do not execute this plugin.
+					pluginExecuted[pluginName] <- fmt.Errorf("dependency plugin %s failed: %w", dep, err)
+				}
+			}
+			// Signal that the plugin has been executed.
+			defer close(pluginExecuted[pluginName])
+
+			pluginExecuted[pluginName] <- prepareDataWithRetriesAndTimeout(nameToNode[pluginName], ctx, request, pods)
+		}()
+	}
+	for pluginName := range dag {
+		err := <-pluginExecuted[pluginName]
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// prepareDataWithRetriesAndTimeout executes the PrepareRequestData plugins with retries and timeout.
+func prepareDataWithRetriesAndTimeout(plugin PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
+	currentTimeout := prepareDataTimeout
+	for i := 0; i <= prepareDataMaxRetries; i++ {
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- plugin.PrepareRequestData(ctx, request, pods)
+		}()
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errCh:
+			if err != nil {
+				log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin failed, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "error", err)
+				continue
+			}
+			return nil // Success
+		case <-time.After(currentTimeout):
+			log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin timed out, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "timeout", currentTimeout)
+			if i == prepareDataMaxRetries {
+				return fmt.Errorf("PrepareData plugin %s failed after %d retries", plugin.TypedName().String(), prepareDataMaxRetries)
+			}
+		}
+	}
+	return nil
+}
+
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	return prepareDataPluginsWithTimeout(
-		prepareDataTimeout, d.requestControlPlugins.prepareDataPlugins, ctx, request, pods)
+	err := d.executePluginsAsDAG(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "failed to execute PrepareData plugins as DAG, falling back to parallel execution")
+		return err
+	}
 
+	return nil
 }
 
 func (d *Director) runAdmissionPlugins(ctx context.Context,
