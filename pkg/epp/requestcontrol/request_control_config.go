@@ -24,7 +24,7 @@ import (
 func NewConfig() *Config {
 	return &Config{
 		admissionPlugins:         []AdmissionPlugin{},
-		dataProducerPlugins:      []DataProducer{},
+		prepareDataPlugins:       []PrepareDataPlugin{},
 		preRequestPlugins:        []PreRequest{},
 		responseReceivedPlugins:  []ResponseReceived{},
 		responseStreamingPlugins: []ResponseStreaming{},
@@ -35,7 +35,7 @@ func NewConfig() *Config {
 // Config provides a configuration for the requestcontrol plugins.
 type Config struct {
 	admissionPlugins         []AdmissionPlugin
-	dataProducerPlugins      []DataProducer
+	prepareDataPlugins       []PrepareDataPlugin
 	preRequestPlugins        []PreRequest
 	responseReceivedPlugins  []ResponseReceived
 	responseStreamingPlugins []ResponseStreaming
@@ -70,9 +70,9 @@ func (c *Config) WithResponseCompletePlugins(plugins ...ResponseComplete) *Confi
 	return c
 }
 
-// WithDataProducers sets the given plugins as the PrepareData plugins.
-func (c *Config) WithDataProducers(plugins ...DataProducer) *Config {
-	c.dataProducerPlugins = plugins
+// WithPrepareDataPlugins sets the given plugins as the PrepareData plugins.
+func (c *Config) WithPrepareDataPlugins(plugins ...PrepareDataPlugin) *Config {
+	c.prepareDataPlugins = plugins
 	return c
 }
 
@@ -85,7 +85,6 @@ func (c *Config) WithAdmissionPlugins(plugins ...AdmissionPlugin) *Config {
 // AddPlugins adds the given plugins to the Config.
 // The type of each plugin is checked and added to the corresponding list of plugins in the Config.
 // If a plugin implements multiple plugin interfaces, it will be added to each corresponding list.
-
 func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 	for _, plugin := range pluginObjects {
 		if preRequestPlugin, ok := plugin.(PreRequest); ok {
@@ -99,6 +98,9 @@ func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 		}
 		if responseCompletePlugin, ok := plugin.(ResponseComplete); ok {
 			c.responseCompletePlugins = append(c.responseCompletePlugins, responseCompletePlugin)
+		}
+		if prepareDataPlugin, ok := plugin.(PrepareDataPlugin); ok {
+			c.prepareDataPlugins = append(c.prepareDataPlugins, prepareDataPlugin)
 		}
 	}
 }

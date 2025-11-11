@@ -24,7 +24,6 @@ import (
 	"math/rand"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -175,7 +174,9 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 
 	// Prepare per request data by running PrepareData plugins.
 	// NOTE: Failure in prepare data plugins does not block the request processing.
-	d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
+	if d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) != nil {
+		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "failed to prepare request data"}
+	}
 
 	// Run admit request plugins
 	if !d.withAdmissionPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
@@ -352,45 +353,55 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
-// prepareData executes the PrepareRequestData plugins with retries and timeout.
-func prepareData(plugin DataProducer, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
+// executePlugins executes PrepareDataPlugins sequentially.
+// TODO: Change to DAG execution in the following PRs.
+func (d *Director) executePlugins(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) error {
+	for _, plugin := range plugins {
+		err := prepareDataWithRetriesAndTimeout(plugin, ctx, request, pods)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// prepareDataWithRetriesAndTimeout executes the PrepareRequestData plugins with retries and timeout.
+func prepareDataWithRetriesAndTimeout(plugin PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
 	currentTimeout := prepareDataTimeout
 	for i := 0; i <= prepareDataMaxRetries; i++ {
-		done := make(chan struct{})
+		errCh := make(chan error, 1)
 		go func() {
-			defer close(done)
-			plugin.PrepareRequestData(ctx, request, pods)
+			errCh <- plugin.PrepareRequestData(ctx, request, pods)
 		}()
 
 		select {
-		case <-done:
-			// Plugin executed successfully
-			return
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-errCh:
+			if err != nil {
+				log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin failed, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "error", err)
+				continue
+			}
+			return nil // Success
 		case <-time.After(currentTimeout):
 			log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin timed out, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "timeout", currentTimeout)
 			if i == prepareDataMaxRetries {
-				log.FromContext(ctx).Error(nil, "PrepareData plugin failed after multiple retries", "plugin", plugin.TypedName())
-				return
+				return fmt.Errorf("PrepareData plugin %s failed after %d retries", plugin.TypedName().String(), prepareDataMaxRetries)
 			}
 		}
 	}
+	return nil
 }
 
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
-	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
-	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
-	// Parallelly execute PrepareData for all the plugins. Some plugins might take time to prepare data e.g. latency predictor.
-	// Failure in any prepareData doesn't block the request processing.
-	var wg sync.WaitGroup
-	for _, plugin := range d.requestControlPlugins.dataProducerPlugins {
-		loggerDebug.Info("Running PrepareData plugin", "plugin", plugin.TypedName())
-		wg.Add(1)
-		go func(p DataProducer) {
-			defer wg.Done()
-			prepareData(p, ctx, request, pods)
-		}(plugin)
+	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
+	err := d.executePlugins(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "failed to execute PrepareData plugins as DAG, falling back to parallel execution")
+		return err
 	}
-	wg.Wait()
+
+	return nil
 }
 
 func (d *Director) withAdmissionPlugins(ctx context.Context,

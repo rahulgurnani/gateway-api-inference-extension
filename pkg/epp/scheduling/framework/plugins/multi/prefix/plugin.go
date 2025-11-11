@@ -209,7 +209,6 @@ func (p *Plugin) Score(ctx context.Context, cycleState *types.CycleState, reques
 	log.FromContext(ctx).V(logutil.TRACE).Info("prefix cached state", "cached-servers", state.PrefixCacheServers, "hashes", state.PrefixHashes)
 	// calculate the scores of pods
 	scores := make(map[types.Pod]float64, len(pods))
-
 	total := len(state.PrefixHashes)
 	podScoreFunc := func(pod types.Pod) float64 {
 		if total == 0 {

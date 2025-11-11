@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -105,38 +106,23 @@ func (ds *mockDatastore) PodList(predicate func(backendmetrics.PodMetrics) bool)
 	return res
 }
 
-type mockDataProducerPlugin struct {
-	tn plugins.TypedName
-}
-
-func newMockDataProducerPlugin(name string) *mockDataProducerPlugin {
-	return &mockDataProducerPlugin{
-		tn: plugins.TypedName{Type: "mock-prepare-request-data", Name: name},
+func newMockPrepareDataPlugin(name string) *mockPrepareDataPlugin {
+	return &mockPrepareDataPlugin{
+		name:     name,
+		produces: map[string]any{mockProducedDataKey: 0},
+		consumes: map[string]any{},
 	}
 }
 
-func (m *mockDataProducerPlugin) TypedName() plugins.TypedName {
-	return m.tn
-}
-
-func (m *mockDataProducerPlugin) Produces() map[string]any {
-	// Produces data of type int, 0 denotes it is int.
-	return map[string]any{mockProducedDataKey: 0}
-}
-
-func (m *mockDataProducerPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) {
-	pods[0].Put(mockProducedDataKey, mockProducedDataType{value: 42})
-}
-
 type mockAdmissionPlugin struct {
-	tn plugins.TypedName
-	// TODO: Replace this will admission control.
-	admitRequestCalled bool
+	tn          plugins.TypedName
+	denialError error
 }
 
-func newMockAdmissionPlugin(name string) *mockAdmissionPlugin {
+func newMockAdmissionPlugin(name string, denialError error) *mockAdmissionPlugin {
 	return &mockAdmissionPlugin{
-		tn: plugins.TypedName{Type: "mock-admit-data", Name: name},
+		tn:          plugins.TypedName{Type: "mock-admit-data", Name: name},
+		denialError: denialError,
 	}
 }
 
@@ -145,8 +131,7 @@ func (m *mockAdmissionPlugin) TypedName() plugins.TypedName {
 }
 
 func (m *mockAdmissionPlugin) AdmitRequest(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	m.admitRequestCalled = true
-	return nil
+	return m.denialError
 }
 
 type mockProducedDataType struct {
@@ -279,9 +264,8 @@ func TestDirector_HandleRequest(t *testing.T) {
 		wantReqCtx              *handlers.RequestContext // Fields to check in the returned RequestContext
 		wantMutatedBodyModel    string                   // Expected model in reqCtx.Request.Body after PostDispatch
 		targetModelName         string                   // Expected model name after target model resolution
-		admitRequestCalled      bool
-		dataProducerPlugin      *mockDataProducerPlugin
-		admissionPlugin         *mockAdmissionPlugin
+		admitRequestDenialError error                    // Expected denial error from admission plugin
+		prepareDataPlugin       *mockPrepareDataPlugin
 	}{
 		{
 			name: "successful completions request",
@@ -364,7 +348,7 @@ func TestDirector_HandleRequest(t *testing.T) {
 			},
 			wantMutatedBodyModel: model,
 			targetModelName:      model,
-			dataProducerPlugin:   newMockDataProducerPlugin("test-plugin"),
+			prepareDataPlugin:    newMockPrepareDataPlugin("test-plugin"),
 		},
 		{
 			name: "successful chat completions request with admit request plugins",
@@ -391,10 +375,29 @@ func TestDirector_HandleRequest(t *testing.T) {
 				},
 				TargetEndpoint: "192.168.1.100:8000,192.168.2.100:8000,192.168.4.100:8000",
 			},
-			wantMutatedBodyModel: model,
-			targetModelName:      model,
-			admitRequestCalled:   true,
-			admissionPlugin:      newMockAdmissionPlugin("test-plugin"),
+			wantMutatedBodyModel:    model,
+			targetModelName:         model,
+			admitRequestDenialError: nil,
+		},
+		{
+			name: "denied request by admit request plugin",
+			reqBodyMap: map[string]any{
+				"model": model,
+				"messages": []any{
+					map[string]any{
+						"role":    "user",
+						"content": "critical prompt",
+					},
+				},
+			},
+			mockAdmissionController: &mockAdmissionController{admitErr: nil},
+			schedulerMockSetup: func(m *mockScheduler) {
+				m.scheduleResults = defaultSuccessfulScheduleResults
+			},
+			wantMutatedBodyModel:    model,
+			targetModelName:         model,
+			admitRequestDenialError: errors.New("denied by admit plugin"),
+			wantErrCode:             errutil.Internal,
 		},
 		{
 			name: "successful chat completions request with multiple messages",
@@ -546,12 +549,10 @@ func TestDirector_HandleRequest(t *testing.T) {
 				test.schedulerMockSetup(mockSched)
 			}
 			config := NewConfig()
-			if test.dataProducerPlugin != nil {
-				config = config.WithDataProducers(test.dataProducerPlugin)
+			if test.prepareDataPlugin != nil {
+				config = config.WithPrepareDataPlugins(test.prepareDataPlugin)
 			}
-			if test.admissionPlugin != nil {
-				config = config.WithAdmissionPlugins(test.admissionPlugin)
-			}
+			config = config.WithAdmissionPlugins(newMockAdmissionPlugin("test-admit-plugin", test.admitRequestDenialError))
 			director := NewDirectorWithConfig(ds, mockSched, test.mockAdmissionController, config)
 
 			reqCtx := &handlers.RequestContext{
@@ -566,9 +567,7 @@ func TestDirector_HandleRequest(t *testing.T) {
 				TargetModelName: test.targetModelName,
 			}
 			// Deep copy the body map.
-			for k, v := range test.reqBodyMap {
-				reqCtx.Request.Body[k] = v
-			}
+			maps.Copy(reqCtx.Request.Body, test.reqBodyMap)
 
 			returnedReqCtx, err := director.HandleRequest(ctx, reqCtx)
 
@@ -595,9 +594,6 @@ func TestDirector_HandleRequest(t *testing.T) {
 				assert.NotNil(t, returnedReqCtx.Request.Body, "Expected mutated body, but reqCtx.Request.Body is nil")
 				assert.Equal(t, test.wantMutatedBodyModel, returnedReqCtx.Request.Body["model"],
 					"Mutated reqCtx.Request.Body model mismatch")
-			}
-			if test.admissionPlugin != nil {
-				assert.True(t, test.admissionPlugin.admitRequestCalled, "AdmitRequest not called")
 			}
 		})
 	}
