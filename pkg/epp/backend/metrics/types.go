@@ -75,8 +75,4 @@ func (f *PodMetricsFactory) ReleaseEndpoint(ep PodMetrics) {
 	}
 }
 
-func (f *PodMetricsFactory) GetAttributes() *datalayer.Attributes {
-	return datalayer.NewAttributes()
-}
-
 type PodMetrics = datalayer.Endpoint
