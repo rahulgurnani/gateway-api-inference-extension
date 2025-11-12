@@ -174,11 +174,12 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 
 	// Prepare per request data by running PrepareData plugins.
 	if d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) != nil {
-		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "failed to prepare request data"}
+		// Don't fail the request if PrepareData plugins fail.
+		logger.V(logutil.DEFAULT).Error(err, "failed to prepare per request data")
 	}
 
 	// Run admit request plugins
-	if !d.withAdmissionPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
+	if !d.runAdmissionPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods) {
 		logger.V(logutil.DEFAULT).Info("Request cannot be admitted")
 		return reqCtx, errutil.Error{Code: errutil.Internal, Msg: "request cannot be admitted"}
 	}
@@ -352,18 +353,6 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
-// executePlugins executes PrepareDataPlugins sequentially.
-// TODO: Change to DAG execution in the following PRs.
-func (d *Director) executePlugins(ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod, plugins []PrepareDataPlugin) error {
-	for _, plugin := range plugins {
-		err := prepareDataWithRetriesAndTimeout(plugin, ctx, request, pods)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // prepareDataWithRetriesAndTimeout executes the PrepareRequestData plugins with retries and timeout.
 func prepareDataWithRetriesAndTimeout(plugin PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
 	currentTimeout := prepareDataTimeout
@@ -392,18 +381,21 @@ func prepareDataWithRetriesAndTimeout(plugin PrepareDataPlugin, ctx context.Cont
 	return nil
 }
 
+// TODO: Execute plugins in parallel once DAG execution is supported.
+// runPrepareDataPlugins executes PrepareDataPlugins sequentially.
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	err := d.executePlugins(ctx, request, pods, d.requestControlPlugins.prepareDataPlugins)
-	if err != nil {
-		log.FromContext(ctx).Error(err, "failed to execute PrepareData plugins as DAG, falling back to parallel execution")
-		return err
+	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
+		err := prepareDataWithRetriesAndTimeout(plugin, ctx, request, pods)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (d *Director) withAdmissionPlugins(ctx context.Context,
+func (d *Director) runAdmissionPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) bool {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	for _, plugin := range d.requestControlPlugins.admissionPlugins {
