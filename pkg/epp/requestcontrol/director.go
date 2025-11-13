@@ -43,8 +43,8 @@ import (
 )
 
 const (
-	prepareDataTimeout    = 200 * time.Millisecond
-	prepareDataMaxRetries = 3
+	// TODO: Make these configurable per plugin via config.
+	prepareDataTimeout = 400 * time.Millisecond
 )
 
 // Datastore defines the interface required by the Director.
@@ -353,46 +353,13 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *scheduling
 	}
 }
 
-// prepareDataWithRetriesAndTimeout executes the PrepareRequestData plugins with retries and timeout.
-func prepareDataWithRetriesAndTimeout(plugin PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	currentTimeout := prepareDataTimeout
-	for i := 0; i <= prepareDataMaxRetries; i++ {
-		errCh := make(chan error, 1)
-		go func() {
-			errCh <- plugin.PrepareRequestData(ctx, request, pods)
-		}()
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-errCh:
-			if err != nil {
-				log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin failed, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "error", err)
-				continue
-			}
-			return nil // Success
-		case <-time.After(currentTimeout):
-			log.FromContext(ctx).V(logutil.DEBUG).Info("PrepareData plugin timed out, retrying...", "plugin", plugin.TypedName(), "retry", i+1, "timeout", currentTimeout)
-			if i == prepareDataMaxRetries {
-				return fmt.Errorf("PrepareData plugin %s failed after %d retries", plugin.TypedName().String(), prepareDataMaxRetries)
-			}
-		}
-	}
-	return nil
-}
-
 // TODO: Execute plugins in parallel once DAG execution is supported.
 // runPrepareDataPlugins executes PrepareDataPlugins sequentially.
 func (d *Director) runPrepareDataPlugins(ctx context.Context,
 	request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	for _, plugin := range d.requestControlPlugins.prepareDataPlugins {
-		err := prepareDataWithRetriesAndTimeout(plugin, ctx, request, pods)
-		if err != nil {
-			return err
-		}
-	}
+	return prepareDataPluginsWithTimeout(
+		prepareDataTimeout, d.requestControlPlugins.prepareDataPlugins, ctx, request, pods)
 
-	return nil
 }
 
 func (d *Director) runAdmissionPlugins(ctx context.Context,
