@@ -26,39 +26,39 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 )
 
-type mockPrepareDataPlugin struct {
+type mockPrepareRequestDataP struct {
 	name     string
 	produces map[string]any
 	consumes map[string]any
 }
 
-func (m *mockPrepareDataPlugin) TypedName() plugins.TypedName {
+func (m *mockPrepareRequestDataP) TypedName() plugins.TypedName {
 	return plugins.TypedName{Name: m.name, Type: "mock"}
 }
 
-func (m *mockPrepareDataPlugin) Produces() map[string]any {
+func (m *mockPrepareRequestDataP) Produces() map[string]any {
 	return m.produces
 }
 
-func (m *mockPrepareDataPlugin) Consumes() map[string]any {
+func (m *mockPrepareRequestDataP) Consumes() map[string]any {
 	return m.consumes
 }
 
-func (m *mockPrepareDataPlugin) PrepareRequestData(ctx context.Context, request *types.LLMRequest, pods []types.Pod) error {
+func (m *mockPrepareRequestDataP) PrepareRequestData(ctx context.Context, request *types.LLMRequest, pods []types.Pod) error {
 	pods[0].Put(mockProducedDataKey, mockProducedDataType{value: 42})
 	return nil
 }
 
 func TestPrepareDataGraph(t *testing.T) {
-	pluginA := &mockPrepareDataPlugin{name: "A", produces: map[string]any{"keyA": nil}}
-	pluginB := &mockPrepareDataPlugin{name: "B", consumes: map[string]any{"keyA": nil}, produces: map[string]any{"keyB": nil}}
-	pluginC := &mockPrepareDataPlugin{name: "C", consumes: map[string]any{"keyB": nil}}
-	pluginD := &mockPrepareDataPlugin{name: "D", consumes: map[string]any{"keyA": nil}}
-	pluginE := &mockPrepareDataPlugin{name: "E"} // No dependencies
+	pluginA := &mockPrepareRequestDataP{name: "A", produces: map[string]any{"keyA": nil}}
+	pluginB := &mockPrepareRequestDataP{name: "B", consumes: map[string]any{"keyA": nil}, produces: map[string]any{"keyB": nil}}
+	pluginC := &mockPrepareRequestDataP{name: "C", consumes: map[string]any{"keyB": nil}}
+	pluginD := &mockPrepareRequestDataP{name: "D", consumes: map[string]any{"keyA": nil}}
+	pluginE := &mockPrepareRequestDataP{name: "E"} // No dependencies
 
 	// Cycle plugins
-	pluginX := &mockPrepareDataPlugin{name: "X", produces: map[string]any{"keyX": nil}, consumes: map[string]any{"keyY": nil}}
-	pluginY := &mockPrepareDataPlugin{name: "Y", produces: map[string]any{"keyY": nil}, consumes: map[string]any{"keyX": nil}}
+	pluginX := &mockPrepareRequestDataP{name: "X", produces: map[string]any{"keyX": nil}, consumes: map[string]any{"keyY": nil}}
+	pluginY := &mockPrepareRequestDataP{name: "Y", produces: map[string]any{"keyY": nil}, consumes: map[string]any{"keyX": nil}}
 
 	testCases := []struct {
 		name        string
