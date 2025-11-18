@@ -461,7 +461,7 @@ func (r *Runner) parseConfigurationPhaseTwo(ctx context.Context, rawConfig *conf
 	r.requestControlConfig.AddPlugins(handle.GetAllPlugins()...)
 	// Check prepare data plugins for cycles.
 	if r.requestControlConfig.ValidatePrepareDataPlugins() != nil {
-		return errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
+		return nil, errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
 	}
 
 	// Handler deprecated configuration options
