@@ -48,27 +48,29 @@ func executePluginsAsDAG(plugins []PrepareDataPlugin, ctx context.Context, reque
 	for pluginName, dependents := range dag {
 		// Execute plugins based on dependencies.
 		//  Wait for the dependencies to complete before executing a plugin.
-		go func() {
-			for _, dep := range dependents {
+		go func(name string, deps []string) {
+			for _, dep := range deps {
 				err, open := <-pluginExecuted[dep]
 				if !open {
 					continue
 				}
 				if err != nil {
 					// If a dependency failed, propagate the error and do not execute this plugin.
-					pluginExecuted[pluginName] <- fmt.Errorf("dependency plugin %s failed: %w", dep, err)
+					pluginExecuted[name] <- fmt.Errorf("dependency plugin %s failed: %w", dep, err)
+					close(pluginExecuted[name])
+					return
 				}
 			}
 			// Signal that the plugin has been executed.
-			defer close(pluginExecuted[pluginName])
+			defer close(pluginExecuted[name])
 
-			pluginExecuted[pluginName] <- nameToNode[pluginName].PrepareRequestData(ctx, request, pods)
-		}()
+			pluginExecuted[name] <- nameToNode[name].PrepareRequestData(ctx, request, pods)
+		}(pluginName, dependents)
 	}
 	for pluginName := range dag {
 		err := <-pluginExecuted[pluginName]
 		if err != nil {
-			return errors.New("prepare data plugin " + pluginName + " failed: " + err.Error())
+			return fmt.Errorf("prepare data plugin %s failed: %w", pluginName, err)
 		}
 	}
 	return nil
@@ -78,7 +80,7 @@ func executePluginsAsDAG(plugins []PrepareDataPlugin, ctx context.Context, reque
 func prepareDataPluginsWithTimeout(timeout time.Duration, plugins []PrepareDataPlugin,
 	ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
 	errCh := make(chan error, 1)
-	// Execute plugins sequentially in a separate goroutine
+	// Execute plugins as a DAG in a separate goroutine
 	go func() {
 		errCh <- executePluginsAsDAG(plugins, ctx, request, pods)
 	}()

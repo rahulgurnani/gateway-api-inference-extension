@@ -441,8 +441,8 @@ func (r *Runner) parsePluginsConfiguration(ctx context.Context, ds datastore.Dat
 	// Add requestControl plugins
 	r.requestControlConfig.AddPlugins(handle.GetAllPlugins()...)
 	// Check prepare data plugins for cycles.
-	if r.requestControlConfig.ValidatePrepareDataPlugins() != nil {
-		return errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
+	if err := r.requestControlConfig.ValidatePrepareDataPlugins(); err != nil {
+		return fmt.Errorf("failed to load the configuration - prepare data plugins have cyclic dependencies: %w", err)
 	}
 
 	logger.Info("loaded configuration from file/text successfully")
