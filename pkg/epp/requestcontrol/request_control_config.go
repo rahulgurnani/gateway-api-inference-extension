@@ -40,6 +40,7 @@ type Config struct {
 	responseReceivedPlugins  []ResponseReceived
 	responseStreamingPlugins []ResponseStreaming
 	responseCompletePlugins  []ResponseComplete
+	prepareDataPluginGraph   map[string][]string
 }
 
 // WithPreRequestPlugins sets the given plugins as the PreRequest plugins.
@@ -105,11 +106,16 @@ func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 	}
 }
 
-// ValidatePrepareDataPlugins validates the PrepareData plugins in the Config.
-// It builds the data dependency graph and checks for cycles.
+// PrepareDataPluginGraph creates and returns the data dependency graph of PrepareData plugins.
 // If a cycle is detected, it returns an error.
-func (c *Config) ValidatePrepareDataPlugins() error {
-	_, err := prepareDataGraph(c.prepareDataPlugins)
-
-	return err
+func (c *Config) PrepareDataPluginGraph() (map[string][]string, error) {
+	if c.prepareDataPluginGraph != nil {
+		return c.prepareDataPluginGraph, nil
+	}
+	graph, err := prepareDataGraph(c.prepareDataPlugins)
+	if err != nil {
+		return nil, err
+	}
+	c.prepareDataPluginGraph = graph
+	return graph, nil
 }
