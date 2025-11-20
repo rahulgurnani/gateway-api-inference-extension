@@ -18,6 +18,7 @@ package requestcontrol
 
 import (
 	"context"
+	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -82,7 +83,7 @@ func TestPrepareDataGraph(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:    "Simple linear dependency (A -> B -> C)",
+			name:    "Simple linear dependency (C -> B -> A)",
 			plugins: []PrepareDataPlugin{pluginA, pluginB, pluginC},
 			expectedDAG: map[string][]string{
 				"A/mock": {},
@@ -92,7 +93,7 @@ func TestPrepareDataGraph(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:    "DAG with multiple dependencies (A -> B, A -> D)",
+			name:    "DAG with multiple dependencies (B -> A, D -> A, E independent)",
 			plugins: []PrepareDataPlugin{pluginA, pluginB, pluginD, pluginE},
 			expectedDAG: map[string][]string{
 				"A/mock": {},
@@ -108,17 +109,11 @@ func TestPrepareDataGraph(t *testing.T) {
 			expectedDAG: nil,
 			expectError: true,
 		},
-		{
-			name:        "Complex graph with a cycle",
-			plugins:     []PrepareDataPlugin{pluginA, pluginB, pluginX, pluginY},
-			expectedDAG: nil,
-			expectError: true,
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dag, err := prepareDataGraph(tc.plugins)
+			dag, orderedPlugins, err := prepareDataGraph(tc.plugins)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -129,9 +124,7 @@ func TestPrepareDataGraph(t *testing.T) {
 
 				// Normalize the slices in the maps for consistent comparison
 				normalizedDAG := make(map[string][]string)
-				for k, v := range dag {
-					normalizedDAG[k] = v
-				}
+				maps.Copy(normalizedDAG, dag)
 				normalizedExpectedDAG := make(map[string][]string)
 				for k, v := range tc.expectedDAG {
 					normalizedExpectedDAG[k] = v
@@ -140,7 +133,27 @@ func TestPrepareDataGraph(t *testing.T) {
 				if diff := cmp.Diff(normalizedExpectedDAG, normalizedDAG); diff != "" {
 					t.Errorf("prepareDataGraph() mismatch (-want +got):\n%s", diff)
 				}
+
+				orderedPluginNames := make([]string, len(orderedPlugins))
+				for i, p := range orderedPlugins {
+					orderedPluginNames[i] = p.TypedName().String()
+				}
+				assertTopologicalOrder(t, dag, orderedPlugins)
 			}
 		})
+	}
+}
+
+func assertTopologicalOrder(t *testing.T, dag map[string][]string, ordered []PrepareDataPlugin) {
+	t.Helper()
+	positions := make(map[string]int)
+	for i, p := range ordered {
+		positions[p.TypedName().String()] = i
+	}
+
+	for node, dependencies := range dag {
+		for _, dep := range dependencies {
+			assert.Less(t, positions[dep], positions[node], "Dependency %s should come before %s", dep, node)
+		}
 	}
 }

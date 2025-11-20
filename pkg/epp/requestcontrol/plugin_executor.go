@@ -19,7 +19,6 @@ package requestcontrol
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
@@ -29,63 +28,9 @@ import (
 // So, a plugin is executed only after all its dependencies have been executed.
 // If there is a cycle or any plugin fails with error, it returns an error.
 func executePluginsAsDAG(plugins []PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
-	// Build the DAG
-	// The error validation happens on startup when loading the config. So, here there should not be any error.
-	dag, err := prepareDataGraph(plugins)
-	if err != nil {
-		return err
-	}
-	// Create a readonly map of plugin name to plugin instance.
-	nameToNode := map[string]PrepareDataPlugin{}
 	for _, plugin := range plugins {
-		nameToNode[plugin.TypedName().String()] = plugin
-	}
-	// Execute the DAG
-
-	// Channels to signal plugin execution completion.
-	pluginExecuted := make(map[string]chan error)
-	// The capacity of the channel is equal to the number of dependents + 1 (for itself).
-	capacityMap := make(map[string]int)
-	for pluginName := range dag {
-		capacityMap[pluginName]++
-		for _, dep := range dag[pluginName] {
-			capacityMap[dep]++
-		}
-	}
-	for pluginName, capacity := range capacityMap {
-		pluginExecuted[pluginName] = make(chan error, capacity)
-	}
-	for pluginName, dependents := range dag {
-		// Execute plugins based on dependencies.
-		//  Wait for the dependencies to complete before executing a plugin.
-		go func(pN string, depds []string) {
-			for _, dep := range depds {
-				// Wait for the dependency plugin to signal completion.
-				if err, closed := <-pluginExecuted[dep]; closed {
-					if err != nil {
-						for range cap(pluginExecuted[pN]) {
-							// Notify all dependents about the failure.
-							pluginExecuted[pN] <- fmt.Errorf("dependency plugin %s failed: %w", dep, err)
-						}
-						// Do not execute this plugin as one of its dependencies failed.
-						return
-					}
-				}
-			}
-			res := nameToNode[pN].PrepareRequestData(ctx, request, pods)
-			for range cap(pluginExecuted[pN]) {
-				// Notify all dependents about the completion.
-				pluginExecuted[pN] <- res
-			}
-		}(pluginName, dependents)
-	}
-
-	// Check for errors in plugin execution.
-	// This will also ensure that all plugins have completed execution before returning.
-	for pluginName := range dag {
-		err := <-pluginExecuted[pluginName]
-		if err != nil {
-			return fmt.Errorf("prepare data plugin %s failed: %v", pluginName, err)
+		if err := plugin.PrepareRequestData(ctx, request, pods); err != nil {
+			return errors.New("prepare data plugin " + plugin.TypedName().String() + " failed: " + err.Error())
 		}
 	}
 	return nil
