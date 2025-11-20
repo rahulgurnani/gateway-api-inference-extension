@@ -41,7 +41,7 @@ const (
 var defaultScorerWeight = DefaultScorerWeight
 
 // setDefaultsPhaseOne Performs the first phase of setting configuration defaults.
-// In particuylar it:
+// In particular it:
 //  1. Sets the name of plugins, for which one wasn't specified
 //  2. Sets defaults for the feature gates
 //  3. Sets defaults for the SaturationDetector configuration
