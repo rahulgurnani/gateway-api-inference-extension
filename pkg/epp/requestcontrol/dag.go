@@ -16,7 +16,10 @@ limitations under the License.
 
 package requestcontrol
 
-import "errors"
+import (
+	"errors"
+	"slices"
+)
 
 // buildDAG builds a dependency graph among data preparation plugins based on their
 // produced and consumed data keys.
@@ -50,50 +53,76 @@ func buildDAG(plugins []PrepareDataPlugin) map[string][]string {
 	return dag
 }
 
-// prepareDataGraph builds a DAG of data preparation plugins and checks for cycles.
+// prepareDataGraph builds the dependency graph and returns the plugins ordered in topological order.
 // If there is a cycle, it returns an error.
-func prepareDataGraph(plugins []PrepareDataPlugin) (map[string][]string, error) {
+func prepareDataGraph(plugins []PrepareDataPlugin) (map[string][]string, []PrepareDataPlugin, error) {
 	dag := buildDAG(plugins)
-
-	// Check for cycles in the DAG.
-	if cycleExistsInDAG(dag) {
-		return nil, errors.New("cycle detected in data preparation plugin dependencies")
+	nameToPlugin := map[string]PrepareDataPlugin{}
+	for _, plugin := range plugins {
+		nameToPlugin[plugin.TypedName().String()] = plugin
+	}
+	sortedPlugins, err := topologicalSort(dag)
+	if err != nil {
+		return nil, nil, err
+	}
+	orderedPlugins := []PrepareDataPlugin{}
+	for _, pluginName := range sortedPlugins {
+		orderedPlugins = append(orderedPlugins, nameToPlugin[pluginName])
 	}
 
-	return dag, nil
+	return dag, orderedPlugins, err
 }
 
-// cycleExistsInDAG checks if there are cycles in the given directed graph represented as an adjacency list.
-func cycleExistsInDAG(dag map[string][]string) bool {
-	visited := make(map[string]bool)
-	recStack := make(map[string]bool)
+// TopologicalSort performs Kahn's Algorithm on a DAG.
+// It returns the sorted order or an error if a cycle is detected.
+func topologicalSort(graph map[string][]string) ([]string, error) {
+	// 1. Initialize in-degree map
+	inDegree := make(map[string]int)
 
-	var dfs func(string) bool
-	dfs = func(node string) bool {
-		if recStack[node] {
-			return true // Cycle detected
+	// Ensure all nodes are present in the inDegree map, even those with no dependencies
+	for u, neighbors := range graph {
+		if _, ok := inDegree[u]; !ok {
+			inDegree[u] = 0
 		}
-		if visited[node] {
-			return false
+		for _, v := range neighbors {
+			inDegree[v]++ // Increment in-degree for the destination node
 		}
-		visited[node] = true
-		recStack[node] = true
-
-		for _, neighbor := range dag[node] {
-			if dfs(neighbor) {
-				return true
-			}
-		}
-		recStack[node] = false
-		return false
 	}
 
-	for pluginName := range dag {
-		if !visited[pluginName] {
-			if dfs(pluginName) {
-				return true
+	// 2. Initialize the queue with nodes having 0 in-degree
+	var queue []string
+	for node, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, node)
+		}
+	}
+
+	var result []string
+
+	// 3. Process the queue
+	for len(queue) > 0 {
+		// Dequeue
+		u := queue[0]
+		queue = queue[1:]
+
+		result = append(result, u)
+
+		// Decrease in-degree of neighbors
+		if neighbors, ok := graph[u]; ok {
+			for _, v := range neighbors {
+				inDegree[v]--
+				if inDegree[v] == 0 {
+					queue = append(queue, v)
+				}
 			}
 		}
 	}
-	return false
+
+	// 4. Check for cycles
+	// If the result size != total nodes, there is a cycle
+	if len(result) != len(inDegree) {
+		return nil, errors.New("cycle detected: graph is not a DAG")
+	}
+	slices.Reverse(result)
+	return result, nil
 }
