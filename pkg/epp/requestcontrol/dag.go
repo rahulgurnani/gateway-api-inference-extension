@@ -53,24 +53,23 @@ func buildDAG(plugins []PrepareDataPlugin) map[string][]string {
 	return dag
 }
 
-// prepareDataGraph builds the dependency graph and returns the plugins ordered in topological order.
+// sortPlugins builds the dependency graph and returns the plugins ordered in topological order.
 // If there is a cycle, it returns an error.
-func prepareDataGraph(plugins []PrepareDataPlugin) (map[string][]string, []PrepareDataPlugin, error) {
-	dag := buildDAG(plugins)
+func sortPlugins(dag map[string][]string, plugins []PrepareDataPlugin) ([]PrepareDataPlugin, error) {
 	nameToPlugin := map[string]PrepareDataPlugin{}
 	for _, plugin := range plugins {
 		nameToPlugin[plugin.TypedName().String()] = plugin
 	}
 	sortedPlugins, err := topologicalSort(dag)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	orderedPlugins := []PrepareDataPlugin{}
 	for _, pluginName := range sortedPlugins {
 		orderedPlugins = append(orderedPlugins, nameToPlugin[pluginName])
 	}
 
-	return dag, orderedPlugins, err
+	return orderedPlugins, err
 }
 
 // TopologicalSort performs Kahn's Algorithm on a DAG.

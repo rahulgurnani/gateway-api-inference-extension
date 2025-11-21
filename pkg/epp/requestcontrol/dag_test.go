@@ -113,33 +113,33 @@ func TestPrepareDataGraph(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			dag, orderedPlugins, err := prepareDataGraph(tc.plugins)
+			dag := buildDAG(tc.plugins)
+			orderedPlugins, err := sortPlugins(dag, tc.plugins)
 
 			if tc.expectError {
 				assert.Error(t, err)
-				assert.Nil(t, dag)
 				assert.Contains(t, err.Error(), "cycle detected")
-			} else {
-				assert.NoError(t, err)
-
-				// Normalize the slices in the maps for consistent comparison
-				normalizedDAG := make(map[string][]string)
-				maps.Copy(normalizedDAG, dag)
-				normalizedExpectedDAG := make(map[string][]string)
-				for k, v := range tc.expectedDAG {
-					normalizedExpectedDAG[k] = v
-				}
-
-				if diff := cmp.Diff(normalizedExpectedDAG, normalizedDAG); diff != "" {
-					t.Errorf("prepareDataGraph() mismatch (-want +got):\n%s", diff)
-				}
-
-				orderedPluginNames := make([]string, len(orderedPlugins))
-				for i, p := range orderedPlugins {
-					orderedPluginNames[i] = p.TypedName().String()
-				}
-				assertTopologicalOrder(t, dag, orderedPlugins)
+				return
 			}
+			assert.NoError(t, err)
+
+			// Normalize the slices in the maps for consistent comparison
+			normalizedDAG := make(map[string][]string)
+			maps.Copy(normalizedDAG, dag)
+			normalizedExpectedDAG := make(map[string][]string)
+			for k, v := range tc.expectedDAG {
+				normalizedExpectedDAG[k] = v
+			}
+
+			if diff := cmp.Diff(normalizedExpectedDAG, normalizedDAG); diff != "" {
+				t.Errorf("prepareDataGraph() mismatch (-want +got):\n%s", diff)
+			}
+
+			orderedPluginNames := make([]string, len(orderedPlugins))
+			for i, p := range orderedPlugins {
+				orderedPluginNames[i] = p.TypedName().String()
+			}
+			assertTopologicalOrder(t, dag, orderedPlugins)
 		})
 	}
 }
