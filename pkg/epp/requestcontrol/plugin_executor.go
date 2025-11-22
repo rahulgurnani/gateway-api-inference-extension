@@ -19,25 +19,70 @@ package requestcontrol
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/scheduling/types"
 )
 
+// executePluginsAsDAG executes PrepareData plugins as a DAG based on their dependencies asynchronously.
+// So, a plugin is executed only after all its dependencies have been executed.
+// If there is a cycle or other error in the DAG, it returns an error.
+func executePluginsAsDAG(plugins []PrepareDataPlugin, ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
+	// Build the DAG
+	// The error validation happens on startup when loading the config. So, here there should not be any error.
+	dag, err := prepareDataGraph(plugins)
+	if err != nil {
+		return err
+	}
+	// Execute the DAG
+
+	// Channels to signal plugin execution completion.
+	pluginExecuted := make(map[string]chan error)
+	nameToNode := map[string]PrepareDataPlugin{}
+	for _, plugin := range plugins {
+		pluginExecuted[plugin.TypedName().String()] = make(chan error)
+		nameToNode[plugin.TypedName().String()] = plugin
+	}
+
+	for pluginName, dependents := range dag {
+		// Execute plugins based on dependencies.
+		//  Wait for the dependencies to complete before executing a plugin.
+		go func(name string, deps []string) {
+			for _, dep := range deps {
+				err, open := <-pluginExecuted[dep]
+				if !open {
+					continue
+				}
+				if err != nil {
+					// If a dependency failed, propagate the error and do not execute this plugin.
+					pluginExecuted[name] <- fmt.Errorf("dependency plugin %s failed: %w", dep, err)
+					close(pluginExecuted[name])
+					return
+				}
+			}
+			// Signal that the plugin has been executed.
+			defer close(pluginExecuted[name])
+
+			pluginExecuted[name] <- nameToNode[name].PrepareRequestData(ctx, request, pods)
+		}(pluginName, dependents)
+	}
+	for pluginName := range dag {
+		err := <-pluginExecuted[pluginName]
+		if err != nil {
+			return fmt.Errorf("prepare data plugin %s failed: %w", pluginName, err)
+		}
+	}
+	return nil
+}
+
 // prepareDataPluginsWithTimeout executes the PrepareRequestData plugins with retries and timeout.
 func prepareDataPluginsWithTimeout(timeout time.Duration, plugins []PrepareDataPlugin,
 	ctx context.Context, request *schedulingtypes.LLMRequest, pods []schedulingtypes.Pod) error {
 	errCh := make(chan error, 1)
-	// Execute plugins sequentially in a separate goroutine
+	// Execute plugins as a DAG in a separate goroutine
 	go func() {
-		for _, plugin := range plugins {
-			err := plugin.PrepareRequestData(ctx, request, pods)
-			if err != nil {
-				errCh <- errors.New("prepare data plugin " + plugin.TypedName().String() + " failed: " + err.Error())
-				return
-			}
-		}
-		errCh <- nil
+		errCh <- executePluginsAsDAG(plugins, ctx, request, pods)
 	}()
 
 	select {
