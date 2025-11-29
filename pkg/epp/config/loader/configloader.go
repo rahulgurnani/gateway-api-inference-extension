@@ -63,7 +63,7 @@ func LoadConfigPhaseOne(configBytes []byte, logger logr.Logger) (*configapi.Endp
 	return rawConfig, featureConfig, nil
 }
 
-// LoadConfigPhaseOne first phase of loading configuration from supplied text that was converted to []byte
+// LoadConfigPhaseTwo second phase of loading configuration from supplied text that was converted to []byte
 func LoadConfigPhaseTwo(rawConfig *configapi.EndpointPickerConfig, handle plugins.Handle, logger logr.Logger) (*config.Config, error) {
 	var err error
 	// instantiate loaded plugins
@@ -152,6 +152,7 @@ func loadFeatureConfig(featureGates configapi.FeatureGates) map[string]bool {
 }
 
 func loadSaturationDetectorConfig(sd *configapi.SaturationDetector) *saturationdetector.Config {
+	// sd is guaranteed to be non-nil by setDefaultsPhaseOne
 	sdConfig := saturationdetector.Config{}
 
 	sdConfig.QueueDepthThreshold = sd.QueueDepthThreshold
