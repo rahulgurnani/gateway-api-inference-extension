@@ -207,6 +207,14 @@ func (p *Plugin) WithName(name string) *Plugin {
 	return p
 }
 
+func (p *Plugin) Produces() map[string]any {
+	return map[string]any{dplugins.PrefixCacheMatchPrecentKey: dplugins.PrefixCacheMatchPercent{}}
+}
+
+func (p *Plugin) Consumes() map[string]any {
+	return map[string]any{}
+}
+
 func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMRequest, pods []types.Pod) error {
 	// pre score step, hashing prompt and find longest prefix match.
 	hashes := hashPrompt(ctx, request, getBlockSize(pods, p.config), p.config.MaxPrefixBlocksToMatch)
