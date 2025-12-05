@@ -74,12 +74,12 @@ func (s *PrefixCacheScorer) Score(_ context.Context, cycleState *types.CycleStat
 	scores := make(map[types.Pod]float64, len(pods))
 
 	for _, pod := range pods {
-		matchPercent, ok := pod.Get(dplugins.PrefixCacheMatchPrecentKey)
+		matchPercent, ok := pod.Get(dplugins.PrefixCacheMatchInfoKey)
 		if !ok {
 			scores[pod] = 0.0
 			continue
 		}
-		scores[pod] = matchPercent.(*dplugins.PrefixCacheMatchPercent).MatchPercentage()
+		scores[pod] = matchPercent.(*dplugins.PrefixCacheMatchInfo).MatchPercentage()
 	}
 	return scores
 }

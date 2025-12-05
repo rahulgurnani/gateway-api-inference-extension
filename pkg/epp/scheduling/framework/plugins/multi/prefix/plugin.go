@@ -208,7 +208,7 @@ func (p *Plugin) WithName(name string) *Plugin {
 }
 
 func (p *Plugin) Produces() map[string]any {
-	return map[string]any{dplugins.PrefixCacheMatchPrecentKey: dplugins.PrefixCacheMatchPercent{}}
+	return map[string]any{dplugins.PrefixCacheMatchInfoKey: dplugins.PrefixCacheMatchInfo{}}
 }
 
 func (p *Plugin) Consumes() map[string]any {
@@ -236,7 +236,7 @@ func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMReque
 		return float64(matchLen) / float64(total)
 	}
 	for _, pod := range pods {
-		pod.Put(dplugins.PrefixCacheMatchPrecentKey, dplugins.NewPrefixCacheMatchPercent(podScoreFunc(pod)))
+		pod.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(podScoreFunc(pod)))
 	}
 	return nil
 }
