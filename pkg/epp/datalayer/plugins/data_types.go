@@ -21,25 +21,25 @@ import (
 )
 
 const (
-	PrefixCacheMatchPrecentKey = "PrefixCacheMatchPercentKey"
+	PrefixCacheMatchInfoKey = "PrefixCacheMatchInfoKey"
 )
 
-type PrefixCacheMatchPercent struct {
+type PrefixCacheMatchInfo struct {
 	matchPercentage float64
 }
 
-func NewPrefixCacheMatchPercent(matchPercentage float64) *PrefixCacheMatchPercent {
-	return &PrefixCacheMatchPercent{
+func NewPrefixCacheMatchInfo(matchPercentage float64) *PrefixCacheMatchInfo {
+	return &PrefixCacheMatchInfo{
 		matchPercentage: matchPercentage,
 	}
 }
 
-func (p *PrefixCacheMatchPercent) MatchPercentage() float64 {
+func (p *PrefixCacheMatchInfo) MatchPercentage() float64 {
 	return p.matchPercentage
 }
 
-func (p *PrefixCacheMatchPercent) Clone() datalayer.Cloneable {
-	return &PrefixCacheMatchPercent{
+func (p *PrefixCacheMatchInfo) Clone() datalayer.Cloneable {
+	return &PrefixCacheMatchInfo{
 		matchPercentage: p.matchPercentage,
 	}
 }
