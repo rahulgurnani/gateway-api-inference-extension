@@ -480,6 +480,7 @@ func (r *Runner) parseConfigurationPhaseOne(ctx context.Context) (*configapi.End
 
 	loader.RegisterFeatureGate(datalayer.FeatureGate)
 	loader.RegisterFeatureGate(flowcontrol.FeatureGate)
+	loader.RegisterFeatureGate(datalayer.PrepareDataPluginsFeatureGate)
 
 	r.registerInTreePlugins()
 
