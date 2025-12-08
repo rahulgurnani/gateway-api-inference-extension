@@ -25,21 +25,28 @@ const (
 )
 
 type PrefixCacheMatchInfo struct {
-	matchPercentage float64
+	matchLength int
+	totalBlocks int
 }
 
-func NewPrefixCacheMatchInfo(matchPercentage float64) *PrefixCacheMatchInfo {
+func NewPrefixCacheMatchInfo(matchLen int, blockHashLen int) *PrefixCacheMatchInfo {
 	return &PrefixCacheMatchInfo{
-		matchPercentage: matchPercentage,
+		matchLength: matchLen,
+		totalBlocks: blockHashLen,
 	}
 }
 
-func (p *PrefixCacheMatchInfo) MatchPercentage() float64 {
-	return p.matchPercentage
+func (p *PrefixCacheMatchInfo) MatchLength() int {
+	return p.matchLength
+}
+
+func (p *PrefixCacheMatchInfo) TotalLength() int {
+	return p.totalBlocks
 }
 
 func (p *PrefixCacheMatchInfo) Clone() datalayer.Cloneable {
 	return &PrefixCacheMatchInfo{
-		matchPercentage: p.matchPercentage,
+		matchLength: p.matchLength,
+		totalBlocks: p.totalBlocks,
 	}
 }

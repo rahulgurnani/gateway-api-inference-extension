@@ -70,7 +70,7 @@ func (s *PrefixCacheScorer) WithName(name string) *PrefixCacheScorer {
 }
 
 func (s *PrefixCacheScorer) Score(_ context.Context, cycleState *types.CycleState, _ *types.LLMRequest, pods []types.Pod) map[types.Pod]float64 {
-	// calculate the scores of pods
+	// Calculate the scores of pods based on prefix cache match percent.
 	scores := make(map[types.Pod]float64, len(pods))
 
 	for _, pod := range pods {
@@ -79,7 +79,7 @@ func (s *PrefixCacheScorer) Score(_ context.Context, cycleState *types.CycleStat
 			scores[pod] = 0.0
 			continue
 		}
-		scores[pod] = matchPercent.(*dplugins.PrefixCacheMatchInfo).MatchPercentage()
+		scores[pod] = float64(matchPercent.(*dplugins.PrefixCacheMatchInfo).MatchLength()) / float64(matchPercent.(*dplugins.PrefixCacheMatchInfo).TotalLength()) * 100
 	}
 	return scores
 }

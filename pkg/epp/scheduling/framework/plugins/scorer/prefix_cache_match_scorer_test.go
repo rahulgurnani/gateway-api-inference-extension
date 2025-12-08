@@ -70,10 +70,10 @@ func (p *mockPod) Keys() []string {
 
 func TestPrefixCacheScorer_Score(t *testing.T) {
 	pod1 := newMockPod()
-	pod1.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(50.0))
+	pod1.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(5, 10))
 
 	pod2 := newMockPod()
-	pod2.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(100.0))
+	pod2.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(10, 10))
 
 	pod3 := newMockPod()
 

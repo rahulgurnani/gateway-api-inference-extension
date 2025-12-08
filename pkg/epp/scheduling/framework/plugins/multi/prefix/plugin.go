@@ -215,8 +215,8 @@ func (p *Plugin) Consumes() map[string]any {
 	return map[string]any{}
 }
 
+// PrepareRequestData hashes prompt, finds longest prefix match and stores it in pod as attribute.
 func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMRequest, pods []types.Pod) error {
-	// pre score step, hashing prompt and find longest prefix match.
 	hashes := hashPrompt(ctx, request, getBlockSize(pods, p.config), p.config.MaxPrefixBlocksToMatch)
 	state := &SchedulingContextState{
 		PrefixHashes:       hashes,
@@ -228,15 +228,10 @@ func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMReque
 	}
 
 	total := len(state.PrefixHashes)
-	podScoreFunc := func(pod types.Pod) float64 {
-		if total == 0 {
-			return 0
-		}
-		matchLen := state.PrefixCacheServers[ServerID(pod.GetPod().NamespacedName)]
-		return float64(matchLen) / float64(total)
-	}
+
 	for _, pod := range pods {
-		pod.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(podScoreFunc(pod)))
+		matchLen := state.PrefixCacheServers[ServerID(pod.GetPod().NamespacedName)]
+		pod.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(matchLen, total))
 	}
 	return nil
 }
