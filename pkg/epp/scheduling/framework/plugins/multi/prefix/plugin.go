@@ -28,7 +28,7 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	dplugins "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer/plugins"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/datalayer/plugins/approximateprefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/plugins"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/requestcontrol"
@@ -208,7 +208,7 @@ func (p *Plugin) WithName(name string) *Plugin {
 }
 
 func (p *Plugin) Produces() map[string]any {
-	return map[string]any{dplugins.PrefixCacheMatchInfoKey: dplugins.PrefixCacheMatchInfo{}}
+	return map[string]any{approximateprefix.PrefixCacheMatchInfoKey: approximateprefix.PrefixCacheMatchInfo{}}
 }
 
 func (p *Plugin) Consumes() map[string]any {
@@ -226,7 +226,7 @@ func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMReque
 
 	for _, pod := range pods {
 		matchLen := state.PrefixCacheServers[ServerID(pod.GetPod().NamespacedName)]
-		pod.Put(dplugins.PrefixCacheMatchInfoKey, dplugins.NewPrefixCacheMatchInfo(matchLen, total))
+		pod.Put(approximateprefix.PrefixCacheMatchInfoKey, approximateprefix.NewPrefixCacheMatchInfo(matchLen, total))
 	}
 	return nil
 }
