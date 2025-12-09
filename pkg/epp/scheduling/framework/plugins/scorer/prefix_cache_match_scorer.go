@@ -60,7 +60,9 @@ func (s *PrefixCacheScorer) TypedName() plugins.TypedName {
 
 // Consumes returns the list of data that is consumed by the plugin.
 func (s *PrefixCacheScorer) Consumes() map[string]any {
-	return map[string]any{}
+	return map[string]any{
+		dplugins.PrefixCacheMatchInfoKey: &dplugins.PrefixCacheMatchInfo{},
+	}
 }
 
 // WithName sets the name of the scorer.
@@ -74,12 +76,12 @@ func (s *PrefixCacheScorer) Score(_ context.Context, cycleState *types.CycleStat
 	scores := make(map[types.Pod]float64, len(pods))
 
 	for _, pod := range pods {
-		matchPercent, ok := pod.Get(dplugins.PrefixCacheMatchInfoKey)
+		matchInfo, ok := pod.Get(dplugins.PrefixCacheMatchInfoKey)
 		if !ok {
 			scores[pod] = 0.0
 			continue
 		}
-		scores[pod] = float64(matchPercent.(*dplugins.PrefixCacheMatchInfo).MatchLength()) / float64(matchPercent.(*dplugins.PrefixCacheMatchInfo).TotalLength()) * 100
+		scores[pod] = float64(matchInfo.(*dplugins.PrefixCacheMatchInfo).MatchLength()) / float64(matchInfo.(*dplugins.PrefixCacheMatchInfo).TotalLength())
 	}
 	return scores
 }

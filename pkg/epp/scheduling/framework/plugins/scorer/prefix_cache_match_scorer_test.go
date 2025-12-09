@@ -86,8 +86,8 @@ func TestPrefixCacheScorer_Score(t *testing.T) {
 			name: "pods with prefix cache match percent",
 			pods: []types.Pod{pod1, pod2},
 			expected: map[types.Pod]float64{
-				pod1: 50.0,
-				pod2: 100.0,
+				pod1: 0.5,
+				pod2: 1.0,
 			},
 		},
 		{
@@ -101,7 +101,7 @@ func TestPrefixCacheScorer_Score(t *testing.T) {
 			name: "mixed pods",
 			pods: []types.Pod{pod1, pod3},
 			expected: map[types.Pod]float64{
-				pod1: 50.0,
+				pod1: 0.5,
 				pod3: 0.0,
 			},
 		},
@@ -146,5 +146,5 @@ func TestPrefixCacheScorer_TypedName(t *testing.T) {
 func TestPrefixCacheScorer_Consumes(t *testing.T) {
 	scorer := NewPrefixCacheScorer()
 	consumes := scorer.Consumes()
-	assert.Empty(t, consumes)
+	assert.Contains(t, consumes, dplugins.PrefixCacheMatchInfoKey)
 }

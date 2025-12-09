@@ -107,9 +107,8 @@ func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 
 // PrepareDataPluginGraph creates data dependency graph and sorts the plugins in topological order.
 // If a cycle is detected, it returns an error.
-func (c *Config) PrepareDataPluginGraph(enablePrepareDataPlugins bool) error {
-	if !enablePrepareDataPlugins {
-		c.prepareDataPlugins = []PrepareDataPlugin{}
+func (c *Config) PrepareDataPluginGraph() error {
+	if len(c.prepareDataPlugins) == 0 {
 		return nil
 	}
 	dag := buildDAG(c.prepareDataPlugins)

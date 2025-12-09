@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	FeatureGate                   = "dataLayer"
-	PrepareDataPluginsFeatureGate = "prepareDataPlugins"
+	ExperimentalDatalayerFeatureGate = "dataLayer"
+	PrepareDataPluginsFeatureGate    = "prepareDataPlugins"
 )
 
 // PoolInfo represents the DataStore information needed for endpoints.

@@ -222,11 +222,6 @@ func (p *Plugin) PrepareRequestData(ctx context.Context, request *types.LLMReque
 		PrefixHashes:       hashes,
 		PrefixCacheServers: p.matchLongestPrefix(ctx, hashes),
 	}
-	for server, matchLen := range state.PrefixCacheServers {
-		log.FromContext(ctx).V(logutil.TRACE).Info("prefix cached state", "server", server, "longest-prefix-match", matchLen)
-
-	}
-
 	total := len(state.PrefixHashes)
 
 	for _, pod := range pods {
