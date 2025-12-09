@@ -527,7 +527,6 @@ func (r *Runner) parseConfigurationPhaseTwo(ctx context.Context, rawConfig *conf
 		if r.requestControlConfig.PrepareDataPluginGraph() != nil {
 			return nil, errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
 		}
-		plugins.Register(scorer.PrefixCacheMatchScorerType, scorer.PrefixCacheScorerFactory) // register PrefixCacheMatchScorer used by prepare data plugins
 	} else {
 		r.requestControlConfig.WithPrepareDataPlugins()
 	}
