@@ -108,6 +108,7 @@ func (c *Config) AddPlugins(pluginObjects ...plugins.Plugin) {
 // PrepareDataPluginGraph creates data dependency graph and sorts the plugins in topological order.
 // If a cycle is detected, it returns an error.
 func (c *Config) PrepareDataPluginGraph() error {
+	// TODO(#1988): Add all producer and consumer plugins to the graph.
 	if len(c.prepareDataPlugins) == 0 {
 		return nil
 	}
