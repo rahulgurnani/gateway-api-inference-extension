@@ -521,13 +521,13 @@ func (r *Runner) parseConfigurationPhaseTwo(ctx context.Context, rawConfig *conf
 	// Add requestControl plugins
 	r.requestControlConfig.AddPlugins(handle.GetAllPlugins()...)
 
-	// TODO(rahulgurnani): Remove feature gate check once prepare data plugins are stable.
-	if r.featureGates[datalayer.PrepareDataPluginsFeatureGate] {
-		// Sort prepare data plugins in DAG order (topological sort). Also check prepare data plugins for cycles.
-		if r.requestControlConfig.PrepareDataPluginGraph() != nil {
-			return nil, errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
-		}
-	} else {
+	// Sort prepare data plugins in DAG order (topological sort). Also check prepare data plugins for cycles.
+	if r.requestControlConfig.PrepareDataPluginGraph() != nil {
+		return nil, errors.New("failed to load the configuration - prepare data plugins have cyclic dependencies")
+	}
+	// TODO(#1970): Remove feature gate check once prepare data plugins are stable.
+	if !r.featureGates[datalayer.PrepareDataPluginsFeatureGate] {
+		// If the feature gate is disabled, clear any prepare data plugins so they are not used.
 		r.requestControlConfig.WithPrepareDataPlugins()
 	}
 
