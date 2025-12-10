@@ -111,7 +111,10 @@ func (c *Config) PrepareDataPluginGraph() error {
 	if len(c.prepareDataPlugins) == 0 {
 		return nil
 	}
-	dag := buildDAG(c.prepareDataPlugins)
+	dag, err := buildDAG(c.prepareDataPlugins)
+	if err != nil {
+		return err
+	}
 	plugins, err := sortPlugins(dag, c.prepareDataPlugins)
 	if err != nil {
 		return err
