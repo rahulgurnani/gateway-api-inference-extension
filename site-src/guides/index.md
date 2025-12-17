@@ -40,6 +40,12 @@ IGW_LATEST_RELEASE=$(curl -s https://api.github.com/repos/kubernetes-sigs/gatewa
     kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/sim-deployment.yaml
     ```
 
+--8<-- "site-src/_includes/sglang-gpu.md"
+
+   ```bash
+   kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/sglang/gpu-deployment.yaml
+   ```
+
 ### Install the Inference Extension CRDs
 
 ```bash
@@ -136,6 +142,21 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
          $ kubectl get gateway inference-gateway
          NAME                CLASS               ADDRESS         PROGRAMMED   AGE
          inference-gateway   inference-gateway   <MY_ADDRESS>    True         22s
+         ```
+      1. Deploy the HTTPRoute:
+      
+         For vllm deployment:
+         ```bash
+         kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/gke/httproute.yaml
+         ```
+         For sglang deployment:
+         ```bash
+         kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/gke/httproute-sglang.yaml
+         ```
+      1. Confirm that the HTTPRoute status conditions include `Accepted=True` and `ResolvedRefs=True`:
+
+         ```bash
+         kubectl get httproute llm-route -o yaml
          ```
 
 === "Istio"
