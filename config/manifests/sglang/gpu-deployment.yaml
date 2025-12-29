@@ -1,47 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sgl-deepseek-v3
+  name: sgl-llama3-8b-instruct
   labels:
-    app: sgl-deepseek-v3
+    app: sgl-llama3-8b-instruct
 spec:
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
-      app: sgl-deepseek-v3
+      app: sgl-llama3-8b-instruct
   template:
     metadata:
       labels:
-        app: sgl-deepseek-v3
+        app: sgl-llama3-8b-instruct
     spec:
       containers:
         - name: sglang
-          image: lmsysorg/sglang:v0.5.6.post2-cu129-arm64
+          image: lmsysorg/sglang:latest
           command: ["python3", "-m", "sglang.launch_server"]
           args:
-            - "--model-path=nvidia/DeepSeek-V3.1-NVFP4"
+            - "--model-path=meta-llama/Llama-3.1-8B-Instruct"
             - "--host=0.0.0.0"
             - "--port=8000"
             - "--dtype=bfloat16"
             - "--kv-cache-dtype=auto"
-            - "--mem-fraction-static=0.90"
+            - "--tp=1"
+            - "--mem-fraction-static=0.90" # Equivalent to vllm's gpu-memory-utilization
             - "--trust-remote-code"
             - "--enable-metrics"
-            # Hardware & Backend Optimization
-            - "--tp=4"
-            - "--quantization=modelopt_fp4"
-            - "--attention-backend=trtllm_mla"
-            - "--moe-runner-backend=flashinfer_trtllm"
-            - "--enable-flashinfer-allreduce-fusion"
-            # Scheduling & Traffic Control
-            - "--max-running-requests=256"
-            - "--schedule-low-priority-values-first"
-            - "--enable-priority-scheduling"
-            - "--priority-scheduling-preemption-threshold=1000"
-            # Logging
-            - "--log-requests"
-            - "--log-requests-level=1"
-            - "--enable-request-time-stats-logging"
           env:
             - name: HF_TOKEN
               valueFrom:
@@ -54,7 +40,7 @@ spec:
               name: http
           resources:
             limits:
-              nvidia.com/gpu: 4
+              nvidia.com/gpu: 1
           volumeMounts:
             - name: model-cache
               mountPath: /root/.cache/huggingface
@@ -70,7 +56,8 @@ spec:
             httpGet:
               path: /health_generate
               port: 8000
-            failureThreshold: 90
+            # Give the container 10 minutes (30 * 20s) to download and load weights
+            failureThreshold: 30
             periodSeconds: 20
       volumes:
         - name: model-cache
@@ -81,8 +68,4 @@ spec:
       tolerations:
         - key: "nvidia.com/gpu"
           operator: "Exists"
-          effect: "NoSchedule"
-        - key: "kubernetes.io/arch"
-          operator: "Equal"
-          value: "arm64"
           effect: "NoSchedule"
