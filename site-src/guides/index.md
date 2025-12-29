@@ -202,6 +202,10 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
          ```bash
          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/istio/httproute.yaml
          ```
+         For sglang deployment:
+         ```
+         kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/istio/sglang-httproute.yaml
+        ```
 
       1. Confirm that the HTTPRoute status conditions include `Accepted=True` and `ResolvedRefs=True`:
 
@@ -231,6 +235,11 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
 
          ```bash
          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/agentgateway/httproute.yaml
+         ```
+         For sglang deployment:
+
+         ```bash
+         kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/agentgateway/sglang-httproute.yaml
          ```
 
       1. Confirm that the HTTPRoute status conditions include `Accepted=True` and `ResolvedRefs=True`:
@@ -265,6 +274,10 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
 
          ```bash
          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/nginxgatewayfabric/httproute.yaml
+         ```
+         For sglang deployment:
+         ```bash
+         kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/gateway/nginxgatewayfabric/sglang-httproute.yaml
          ```
 
       4. Verify the route status
