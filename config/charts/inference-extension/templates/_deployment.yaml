@@ -115,6 +115,10 @@ spec:
               - --{{ $key }}
               - "{{ $value }}"
           {{- end }}
+          {{- if eq $modelServerType "sglang" }}
+            - --total-queued-requests-metric="sglang:num_queue_reqs"
+            - --kv-cache-usage-percentage-metric="sglang:token_usage"
+          {{- end }}
           {{- if .Values.inferenceExtension.tracing.enabled }}
               - --tracing=true
           {{- else }}
