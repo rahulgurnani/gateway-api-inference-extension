@@ -21,14 +21,16 @@ IGW_LATEST_RELEASE=$(curl -s https://api.github.com/repos/kubernetes-sigs/gatewa
 
 ### Deploy Sample Model Server
 
---8<-- "site-src/_includes/model-server-gpu.md"
+--8<-- "site-src/_includes/model-server-intro.md"
+
+--8<-- "site-src/_includes/vllm-gpu.md"
 
     ```bash
     kubectl create secret generic hf-token --from-literal=token=$HF_TOKEN # Your Hugging Face Token with access to the set of Llama models
     kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/gpu-deployment.yaml
     ```
 
---8<-- "site-src/_includes/model-server-cpu.md"
+--8<-- "site-src/_includes/vllm-cpu.md"
 
     ```bash
     kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/cpu-deployment.yaml
