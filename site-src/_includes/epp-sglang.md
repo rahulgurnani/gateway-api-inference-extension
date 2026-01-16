@@ -5,6 +5,7 @@
       helm install sgl-llama3-8b-instruct \
       --set inferencePool.modelServers.matchLabels.app=sgl-llama3-8b-instruct \
       --set provider.name=$GATEWAY_PROVIDER \
+      --set inferencePool.modelServerType=sglang \
       --version $IGW_CHART_VERSION \
       oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
       ```
@@ -16,6 +17,7 @@
       helm install sgl-llama3-8b-instruct \
       --set inferencePool.modelServers.matchLabels.app=sgl-llama3-8b-instruct \
       --set provider.name=$GATEWAY_PROVIDER \
+      --set inferencePool.modelServerType=sglang \
       --version $IGW_CHART_VERSION \
       oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
       ```
@@ -27,6 +29,7 @@
       helm install sgl-llama3-8b-instruct \
       --set inferencePool.modelServers.matchLabels.app=sgl-llama3-8b-instruct \
       --set provider.name=$GATEWAY_PROVIDER \
+      --set inferencePool.modelServerType=sglang \
       --version $IGW_CHART_VERSION \
       oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
       ```
@@ -38,6 +41,7 @@
       helm install sgl-llama3-8b-instruct \
       --set inferencePool.modelServers.matchLabels.app=sgl-llama3-8b-instruct \
       --set provider.name=$GATEWAY_PROVIDER \
+      --set inferencePool.modelServerType=sglang \
       --version $IGW_CHART_VERSION \
       oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool
       ```
