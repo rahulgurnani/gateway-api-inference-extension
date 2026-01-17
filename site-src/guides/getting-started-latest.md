@@ -16,8 +16,6 @@
 
 ### Deploy Sample Model Server
 
---8<-- "site-src/_includes/model-server-intro.md"
-
 --8<-- "site-src/_includes/vllm-gpu.md"
 
     ```bash
