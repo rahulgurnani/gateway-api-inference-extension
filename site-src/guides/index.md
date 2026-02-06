@@ -25,7 +25,7 @@ MODEL_SERVER=vllm  # sglang is also supported.
 --8<-- "site-src/_includes/model-server-gpu.md"
 
     ```bash
-    kubectl create secret generic hf-token --from-literal=token=$HF_TOKEN # Your Hugging Face Token with access to the set of Llama models
+    kubectl create secret generic hf-token --from-literal-token=$HF_TOKEN # Your Hugging Face Token with access to the set of Llama models
     kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/${MODEL_SERVER}/gpu-deployment.yaml
     ```
 
