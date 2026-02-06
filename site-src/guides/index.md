@@ -42,9 +42,9 @@ IGW_LATEST_RELEASE=$(curl -s https://api.github.com/repos/kubernetes-sigs/gatewa
 
 --8<-- "site-src/_includes/sglang-gpu.md"
     
-   ```bash
-   kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/sglang/gpu-deployment.yaml
-   ```
+    ```bash
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/heads/main/config/manifests/sglang/gpu-deployment.yaml
+    ```
 
 ### Install the Inference Extension CRDs
 
@@ -206,7 +206,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
 
 ### Deploy the InferencePool and Endpoint Picker Extension
 
-   Install an InferencePool named `vllm-llama3-8b-instruct` that selects from endpoints with label `app: vllm-llama3-8b-instruct` and listening on port 8000. The Helm install command automatically installs the endpoint-picker, InferencePool along with provider specific resources.
+   The Helm install command automatically installs the endpoint-picker, InferencePool along with provider specific resources.
 
    Set the chart version and then select a tab to follow the provider-specific instructions.
 
@@ -250,11 +250,13 @@ You have now deployed a basic Inference Gateway with a simple routing strategy. 
    1. Uninstall the InferencePool, InferenceObjective and model server resources:
 
       ```bash
-      helm uninstall vllm-llama3-8b-instruct
+      helm uninstall vllm-llama3-8b-instruct --ignore-not-found
+      helm uninstall sgl-llama3-8b-instruct --ignore-not-found
       kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/inferenceobjective.yaml --ignore-not-found
       kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/cpu-deployment.yaml --ignore-not-found
       kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/gpu-deployment.yaml --ignore-not-found
       kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/vllm/sim-deployment.yaml --ignore-not-found
+      kubectl delete -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api-inference-extension/refs/tags/${IGW_LATEST_RELEASE}/config/manifests/sglang/gpu-deployment.yaml --ignore-not-found
       kubectl delete secret hf-token --ignore-not-found
       ```
 

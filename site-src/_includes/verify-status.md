@@ -1,6 +1,7 @@
    1. Verify the `HttpRoute` status:
 
-      Check that the HTTPRoute was successfully configured and references were resolved:
+      Check that the HTTPRoute was successfully configured and references were resolved. Example command for vllm-llama3-8b-instruct:
+
 
       ```bash
       kubectl get httproute vllm-llama3-8b-instruct -o yaml
@@ -10,7 +11,8 @@
 
    1. Verify the `InferencePool` Status:
 
-      Make sure the `InferencePool` is active before sending traffic.
+      Make sure the `InferencePool` is active before sending traffic. Example command for vllm-llama3-8b-instruct:
+
 
       ```bash
       kubectl get inferencepool vllm-llama3-8b-instruct -o yaml
