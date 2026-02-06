@@ -199,7 +199,7 @@ kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extens
       
        For more information, see the [NGINX Gateway Fabric - Inference Gateway Setup guide](https://docs.nginx.com/nginx-gateway-fabric/how-to/gateway-api-inference-extension/#overview)
 
-### Deploy the InferencePool and Endpoint Picker Extension
+### Deploy the InferencePool and Endpoint Picker
 
    The Helm install command automatically installs the EPP, InferencePool along with provider specific resources.
 
