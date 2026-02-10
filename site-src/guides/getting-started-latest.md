@@ -212,7 +212,7 @@ kubectl apply -k https://github.com/kubernetes-sigs/gateway-api-inference-extens
 
 ### Verify HttpRoute and InferencePool Status
 
---8<-- "site-src/_includes/verify-status.md"
+--8<-- "site-src/_includes/verify-status-latest.md"
 
 ### Deploy InferenceObjective (Optional)
 
