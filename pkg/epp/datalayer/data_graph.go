@@ -57,10 +57,6 @@ func ValidateAndOrderDataDependencies(plugins []plugin.Plugin) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	// Validate that the plugins are ordered in a way that respects the layer execution order.
-	if err = validateLayerBasedExecutionOrder(pluginNames, pluginMap); err != nil {
-		return nil, err
-	}
 
 	return pluginNames, nil
 }
@@ -70,7 +66,7 @@ const (
 	FlowControlLayer    = 0
 	RequestControlLayer = 1
 	SchedulingLayer     = 2
-	UnknownLayer        = -1 // For plugins that don't fit into a known layer
+	DefaultLayer        = -1 // For plugins that don't fit into a known layer
 )
 
 func pluginToLayerExecutionOrder(plugin plugin.Plugin) int {
@@ -111,28 +107,7 @@ func pluginToLayerExecutionOrder(plugin plugin.Plugin) int {
 	}
 
 	// If the plugin doesn't match any known layer, return -1.
-	return UnknownLayer
-}
-
-func validateLayerBasedExecutionOrder(pluginExecutionOrder []string, pluginMap map[string]plugin.Plugin) error {
-	lastExecutedLayer := 0
-	for _, pluginName := range pluginExecutionOrder {
-		plugin, ok := pluginMap[pluginName]
-		if !ok {
-			return errors.New("plugin not found: " + pluginName)
-		}
-		order := pluginToLayerExecutionOrder(plugin)
-		// If the plugin doesn't belong to any known layer, skip it.
-		if order == -1 {
-			continue
-		}
-		if order < lastExecutedLayer {
-			return errors.New("invalid plugin execution order: plugin " + pluginName + " needs to be executed before its dependencies")
-		}
-		lastExecutedLayer = order
-	}
-
-	return nil
+	return DefaultLayer
 }
 
 // buildDAG builds a dependency graph among data preparation plugins based on their
@@ -158,6 +133,9 @@ func buildDAG(producers map[string]plugin.ProducerPlugin, consumers map[string]p
 						// TODO(#1985): Document this detail in IGW docs.
 						if producedData != consumedData {
 							return nil, errors.New("data type mismatch between produced and consumed data for key: " + producedKey)
+						}
+						if pluginToLayerExecutionOrder(producer) > pluginToLayerExecutionOrder(consumer) {
+							return nil, errors.New("invalid plugin layer execution order: producer " + pName + " needs to be executed before consumer " + cName)
 						}
 						// Consumer depends on producer, so add an edge from consumer to producer.
 						dag[cName] = append(dag[cName], pName)

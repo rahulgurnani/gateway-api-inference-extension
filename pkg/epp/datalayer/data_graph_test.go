@@ -26,8 +26,8 @@ import (
 	fwkdl "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/datalayer"
 	fwkfcmocks "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/flowcontrol/mocks"
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
-	fwk "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
-	types "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
+	fwkrc "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
+	fwksch "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
 const mockProducedDataKey = "mockProducedData"
@@ -58,7 +58,7 @@ func (m *mockPrepareRequestDataP) Consumes() map[string]any {
 	return m.consumes
 }
 
-func (m *mockPrepareRequestDataP) PrepareRequestData(ctx context.Context, request *types.LLMRequest, endpoints []types.Endpoint) error {
+func (m *mockPrepareRequestDataP) PrepareRequestData(ctx context.Context, request *fwksch.LLMRequest, endpoints []fwksch.Endpoint) error {
 	endpoints[0].Put(mockProducedDataKey, &mockProducedDataType{value: 42})
 	return nil
 }
@@ -73,7 +73,7 @@ func (m *MockConsumerFairnessPolicy) Consumes() map[string]any {
 }
 
 type MockSchedulingPlugin struct {
-	fwkplugin.Plugin
+	fwksch.Scorer
 	consumes map[string]any
 }
 
@@ -85,12 +85,6 @@ func (m *MockSchedulingPlugin) Consumes() map[string]any {
 	return m.consumes
 }
 
-func (m *MockSchedulingPlugin) Score(ctx context.Context, cycleState *types.CycleState, request *types.LLMRequest, pods []types.Endpoint) map[types.Endpoint]float64 {
-	return map[types.Endpoint]float64{
-		pods[0]: 1.0,
-	}
-}
-
 func TestValidatePluginExecutionOrder(t *testing.T) {
 	// Request control plugin that produces data.
 	pluginA := &mockPrepareRequestDataP{name: "A", produces: map[string]any{"keyA": nil}}
@@ -98,7 +92,7 @@ func TestValidatePluginExecutionOrder(t *testing.T) {
 	consumerFairnessPolicyPlugin := MockConsumerFairnessPolicy{consumes: map[string]any{"keyA": nil}}
 	// Scheduling plugin.
 	consumerSchedulingPlugin := MockSchedulingPlugin{consumes: map[string]any{"keyA": nil}}
-	if _, ok := any(pluginA).(fwk.PrepareDataPlugin); !ok {
+	if _, ok := any(pluginA).(fwkrc.PrepareDataPlugin); !ok {
 		t.Fatalf("pluginA should implement PrepareDataPlugin")
 	}
 
@@ -153,19 +147,19 @@ func TestDAGAndTopologicalOrder(t *testing.T) {
 
 	testCases := []struct {
 		name        string
-		plugins     []fwk.PrepareDataPlugin
+		plugins     []fwkrc.PrepareDataPlugin
 		expectedDAG map[string][]string
 		expectError bool
 	}{
 		{
 			name:        "No plugins",
-			plugins:     []fwk.PrepareDataPlugin{},
+			plugins:     []fwkrc.PrepareDataPlugin{},
 			expectedDAG: map[string][]string{},
 			expectError: false,
 		},
 		{
 			name:    "Plugins with no dependencies",
-			plugins: []fwk.PrepareDataPlugin{pluginA, pluginE},
+			plugins: []fwkrc.PrepareDataPlugin{pluginA, pluginE},
 			expectedDAG: map[string][]string{
 				"A/mock": {},
 				"E/mock": {},
@@ -174,7 +168,7 @@ func TestDAGAndTopologicalOrder(t *testing.T) {
 		},
 		{
 			name:    "Simple linear dependency (C -> B -> A)",
-			plugins: []fwk.PrepareDataPlugin{pluginA, pluginB, pluginC},
+			plugins: []fwkrc.PrepareDataPlugin{pluginA, pluginB, pluginC},
 			expectedDAG: map[string][]string{
 				"A/mock": {},
 				"B/mock": {"A/mock"},
@@ -184,7 +178,7 @@ func TestDAGAndTopologicalOrder(t *testing.T) {
 		},
 		{
 			name:    "DAG with multiple dependencies (B -> A, D -> A, E independent)",
-			plugins: []fwk.PrepareDataPlugin{pluginA, pluginB, pluginD, pluginE},
+			plugins: []fwkrc.PrepareDataPlugin{pluginA, pluginB, pluginD, pluginE},
 			expectedDAG: map[string][]string{
 				"A/mock": {},
 				"B/mock": {"A/mock"},
@@ -195,13 +189,13 @@ func TestDAGAndTopologicalOrder(t *testing.T) {
 		},
 		{
 			name:        "Graph with a cycle (X -> Y, Y -> X)",
-			plugins:     []fwk.PrepareDataPlugin{pluginX, pluginY},
+			plugins:     []fwkrc.PrepareDataPlugin{pluginX, pluginY},
 			expectedDAG: nil,
 			expectError: true,
 		},
 		{
 			name:        "Data type mismatch between produced and consumed data",
-			plugins:     []fwk.PrepareDataPlugin{pluginZ1, pluginZ2},
+			plugins:     []fwkrc.PrepareDataPlugin{pluginZ1, pluginZ2},
 			expectedDAG: nil,
 			expectError: true,
 		},
