@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package requestcontrol
+package datalayer
 
 import (
 	"context"
@@ -23,15 +23,27 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+	fwkdl "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/datalayer"
+	fwkfcmocks "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/flowcontrol/mocks"
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	fwk "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
 	types "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
+const mockProducedDataKey = "mockProducedData"
+
 type mockPrepareRequestDataP struct {
 	name     string
 	produces map[string]any
 	consumes map[string]any
+}
+
+type mockProducedDataType struct {
+	value int
+}
+
+func (m *mockProducedDataType) Clone() fwkdl.Cloneable {
+	return &mockProducedDataType{value: m.value}
 }
 
 func (m *mockPrepareRequestDataP) TypedName() fwkplugin.TypedName {
@@ -47,11 +59,84 @@ func (m *mockPrepareRequestDataP) Consumes() map[string]any {
 }
 
 func (m *mockPrepareRequestDataP) PrepareRequestData(ctx context.Context, request *types.LLMRequest, endpoints []types.Endpoint) error {
-	endpoints[0].Put(mockProducedDataKey, mockProducedDataType{value: 42})
+	endpoints[0].Put(mockProducedDataKey, &mockProducedDataType{value: 42})
 	return nil
 }
 
-func TestPrepareDataGraph(t *testing.T) {
+type MockConsumerFairnessPolicy struct {
+	fwkfcmocks.MockFairnessPolicy
+	consumes map[string]any
+}
+
+func (m *MockConsumerFairnessPolicy) Consumes() map[string]any {
+	return m.consumes
+}
+
+type MockSchedulingPlugin struct {
+	fwkplugin.Plugin
+	consumes map[string]any
+}
+
+func (m *MockSchedulingPlugin) TypedName() fwkplugin.TypedName {
+	return fwkplugin.TypedName{Name: "MockSchedulingPlugin", Type: "mock"}
+}
+
+func (m *MockSchedulingPlugin) Consumes() map[string]any {
+	return m.consumes
+}
+
+func (m *MockSchedulingPlugin) Score(ctx context.Context, cycleState *types.CycleState, request *types.LLMRequest, pods []types.Endpoint) map[types.Endpoint]float64 {
+	return map[types.Endpoint]float64{
+		pods[0]: 1.0,
+	}
+}
+
+func TestValidatePluginExecutionOrder(t *testing.T) {
+	// Request control plugin that produces data.
+	pluginA := &mockPrepareRequestDataP{name: "A", produces: map[string]any{"keyA": nil}}
+	// Flow control plugin.
+	consumerFairnessPolicyPlugin := MockConsumerFairnessPolicy{consumes: map[string]any{"keyA": nil}}
+	// Scheduling plugin.
+	consumerSchedulingPlugin := MockSchedulingPlugin{consumes: map[string]any{"keyA": nil}}
+	if _, ok := any(pluginA).(fwk.PrepareDataPlugin); !ok {
+		t.Fatalf("pluginA should implement PrepareDataPlugin")
+	}
+
+	testCases := []struct {
+		name        string
+		plugins     []fwkplugin.Plugin
+		expectError bool
+	}{
+		{
+			name:        "Plugins with no dependencies",
+			plugins:     []fwkplugin.Plugin{pluginA},
+			expectError: false,
+		},
+		{
+			name:        "FC depends on a request control plugin (invalid layer execution order)",
+			plugins:     []fwkplugin.Plugin{pluginA, &consumerFairnessPolicyPlugin},
+			expectError: true,
+		},
+		{
+			name:        "Scheduling plugin depends on a request control plugin",
+			plugins:     []fwkplugin.Plugin{pluginA, &consumerSchedulingPlugin},
+			expectError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ValidateAndOrderDataDependencies(tc.plugins)
+			if tc.expectError {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestDAGAndTopologicalOrder(t *testing.T) {
 	pluginA := &mockPrepareRequestDataP{name: "A", produces: map[string]any{"keyA": nil}}
 	pluginB := &mockPrepareRequestDataP{name: "B", consumes: map[string]any{"keyA": nil}, produces: map[string]any{"keyB": nil}}
 	pluginC := &mockPrepareRequestDataP{name: "C", consumes: map[string]any{"keyB": nil}}
