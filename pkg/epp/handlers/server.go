@@ -243,7 +243,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 
 				reqCtx, err = s.director.HandleRequest(ctx, reqCtx)
 				if err != nil {
-					logger.V(logutil.DEFAULT).Error(err, "Error handling request")
+					logger.Error(err, "Error handling request")
 					break
 				}
 
@@ -251,7 +251,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 				var requestBodyBytes []byte
 				requestBodyBytes, err = json.Marshal(reqCtx.Request.Body)
 				if err != nil {
-					logger.V(logutil.DEFAULT).Error(err, "Error marshalling request body")
+					logger.Error(err, "Error marshalling request body")
 					break
 				}
 				// Update RequestSize to match marshalled body for Content-Length header.
@@ -283,7 +283,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 				if logger.V(logutil.DEBUG).Enabled() {
 					logger.V(logutil.DEBUG).Error(responseErr, "Failed to process response headers", "request", req)
 				} else {
-					logger.V(logutil.DEFAULT).Error(responseErr, "Failed to process response headers")
+					logger.Error(responseErr, "Failed to process response headers")
 				}
 			}
 			reqCtx.respHeaderResp = s.generateResponseHeaderResponse(reqCtx)
@@ -323,7 +323,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 						if logger.V(logutil.DEBUG).Enabled() {
 							logger.V(logutil.DEBUG).Error(responseErr, "Error unmarshalling request body", "body", string(body))
 						} else {
-							logger.V(logutil.DEFAULT).Error(responseErr, "Error unmarshalling request body", "body", string(body))
+							logger.Error(responseErr, "Error unmarshalling request body", "body", string(body))
 						}
 						reqCtx.respBodyResp = generateResponseBodyResponses(body, true)
 						break
@@ -334,7 +334,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 						if logger.V(logutil.DEBUG).Enabled() {
 							logger.V(logutil.DEBUG).Error(responseErr, "Failed to process response body", "request", req)
 						} else {
-							logger.V(logutil.DEFAULT).Error(responseErr, "Failed to process response body")
+							logger.Error(responseErr, "Failed to process response body")
 						}
 					} else if reqCtx.ResponseComplete {
 						reqCtx.ResponseCompleteTimestamp = time.Now()
@@ -359,14 +359,14 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 			if logger.V(logutil.DEBUG).Enabled() {
 				logger.V(logutil.DEBUG).Error(err, "Failed to process request", "request", req)
 			} else {
-				logger.V(logutil.DEFAULT).Error(err, "Failed to process request")
+				logger.Error(err, "Failed to process request")
 			}
 			resp, err := buildErrResponse(err)
 			if err != nil {
 				return err
 			}
 			if err := srv.Send(resp); err != nil {
-				logger.V(logutil.DEFAULT).Error(err, "Send failed")
+				logger.Error(err, "Send failed")
 				return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 			}
 			return nil
@@ -386,7 +386,7 @@ func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProces
 	if r.RequestState == RequestReceived && r.reqHeaderResp != nil {
 		loggerTrace.Info("Sending request header response", "obj", r.reqHeaderResp)
 		if err := srv.Send(r.reqHeaderResp); err != nil {
-			logger.V(logutil.DEFAULT).Error(err, "error sending response")
+			logger.Error(err, "error sending response")
 			return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 		}
 		r.RequestState = HeaderRequestResponseComplete
