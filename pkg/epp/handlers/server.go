@@ -213,9 +213,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 				reqCtx.Request.Headers[requtil.RequestIdHeaderKey] = requestID // update in headers so director can consume it
 			}
 			logger = logger.WithValues(requtil.RequestIdHeaderKey, requestID)
-
 			logger.Info("EPP received request") // Request ID will be logged too as part of logger context values.
-
 			loggerTrace = logger.V(logutil.TRACE)
 			ctx = log.IntoContext(ctx, logger)
 
@@ -277,7 +275,6 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 					loggerTrace.Info("model server is streaming response")
 				}
 			}
-
 			reqCtx.RequestState = ResponseReceived
 
 			var responseErr error
@@ -372,7 +369,6 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 				logger.V(logutil.DEFAULT).Error(err, "Send failed")
 				return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 			}
-
 			return nil
 		}
 		loggerTrace.Info("checking", "request state", reqCtx.RequestState)
@@ -431,10 +427,10 @@ func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProces
 
 			body := response.Response.(*extProcPb.ProcessingResponse_ResponseBody)
 			if body.ResponseBody.Response.GetBodyMutation().GetStreamedResponse().GetEndOfStream() {
+				logger.Info("EPP sent response body back to proxy")
 				r.RequestState = BodyResponseResponsesComplete
 			}
 		}
-		logger.Info("EPP sent response body back to proxy")
 		// Dump the response so a new stream message can begin
 		r.respBodyResp = nil
 	}
