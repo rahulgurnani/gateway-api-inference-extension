@@ -2,8 +2,8 @@
 
 This guide explains how to configure the Inference Gateway to serve multimodal models, which can process and generate content across different modalities like text, images, audio, and video.
 
-!!! warning "Unreleased/main branch"
-    This guide tracks **main** and is intended for users who want the very latest features and fixes and are comfortable with potential breakage.
+!!! Note about optimizations
+    The current implementation of multimodal support is not optimized in the IGW. Optimizations relating for multimodal models are planned in future releases, for example [multimodal prefix cache aware routing](https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/2172).
 
 Multimodal models are becoming increasingly prevalent in AI, enabling applications that can understand and interact with the world in more human-like ways. For example, a single model might be able to answer questions about an image, transcribe audio, or generate video descriptions. The Inference Gateway provides a flexible and efficient way to deploy and manage these complex models within your Kubernetes cluster.
 
