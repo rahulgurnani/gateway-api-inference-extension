@@ -75,7 +75,7 @@ func (p *ApproxPrefixCacheScorer) Score(ctx context.Context, _ *framework.CycleS
 		}
 		if prefixMatchInfo, ok := info.(*attrprefix.PrefixCacheMatchInfo); ok {
 			if prefixMatchInfo.TotalBlocks() == 0 {
-				logger.V(logging.DEFAULT).Error(nil, "TotalBlocks is 0 for endpoint, assigning score 0", "endpoint", endpoint)
+				logger.V(logging.DEFAULT).Info("TotalBlocks is 0 for endpoint, assigning score 0", "endpoint", endpoint)
 				scores[endpoint] = 0.0
 			} else {
 				scores[endpoint] = float64(prefixMatchInfo.MatchBlocks()) / float64(prefixMatchInfo.TotalBlocks())
