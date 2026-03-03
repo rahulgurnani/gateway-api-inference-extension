@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,7 +26,7 @@ import (
 	attrprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/prefix"
 )
 
-func TestApproxPrefixCacheScorer_Score(t *testing.T) {
+func TestPrefixMatchScorer_Score(t *testing.T) {
 	epWithMatch := framework.NewEndpoint(&datalayer.EndpointMetadata{}, &datalayer.Metrics{}, nil)
 	epWithMatch.Put(attrprefix.PrefixCacheMatchInfoKey, attrprefix.NewPrefixCacheMatchInfo(5, 10, 1))
 
@@ -62,7 +62,7 @@ func TestApproxPrefixCacheScorer_Score(t *testing.T) {
 			},
 		},
 	}
-	scorer := &ApproxPrefixCacheScorer{}
+	scorer := &PrefixMatchScorer{}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			scores := scorer.Score(context.Background(), nil, &framework.LLMRequest{}, tc.endpoints)

@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,40 +27,40 @@ import (
 )
 
 const (
-	ApproximatePrefixCacheScorerPluginType = "approx-prefix-cache-scorer"
+	PrefixMatchScorerPluginType = "prefix-match-scorer"
 )
 
-type ApproxPrefixCacheScorer struct {
+type PrefixMatchScorer struct {
 	typedName plugin.TypedName
 }
 
 // compile-time type assertion
 var (
-	_ framework.Scorer = &ApproxPrefixCacheScorer{}
+	_ framework.Scorer = &PrefixMatchScorer{}
 )
 
 // Category returns the preference the scorer applies when scoring candidate endpoints.
-func (p *ApproxPrefixCacheScorer) Category() framework.ScorerCategory {
+func (p *PrefixMatchScorer) Category() framework.ScorerCategory {
 	return framework.Affinity
 }
 
 // TypedName returns the type and name tuple of this plugin instance.
-func (p *ApproxPrefixCacheScorer) TypedName() plugin.TypedName {
+func (p *PrefixMatchScorer) TypedName() plugin.TypedName {
 	return p.typedName
 }
 
 // Consumes returns the data consumed by the plugin.
-func (p *ApproxPrefixCacheScorer) Consumes() map[string]any {
+func (p *PrefixMatchScorer) Consumes() map[string]any {
 	return map[string]any{attrprefix.PrefixCacheMatchInfoKey: attrprefix.PrefixCacheMatchInfo{}}
 }
 
 // Produces returns the data produced by the plugin.
-func (p *ApproxPrefixCacheScorer) Produces() map[string]any {
+func (p *PrefixMatchScorer) Produces() map[string]any {
 	return map[string]any{}
 }
 
 // Score returns the scoring result for the given list of pods based on context.
-func (p *ApproxPrefixCacheScorer) Score(ctx context.Context, _ *framework.CycleState, request *framework.LLMRequest, endpoints []framework.Endpoint) map[framework.Endpoint]float64 {
+func (p *PrefixMatchScorer) Score(ctx context.Context, _ *framework.CycleState, request *framework.LLMRequest, endpoints []framework.Endpoint) map[framework.Endpoint]float64 {
 	// calculate the scores of endpoints
 	scores := make(map[framework.Endpoint]float64, len(endpoints))
 	logger := log.FromContext(ctx)
