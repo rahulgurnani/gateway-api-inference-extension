@@ -121,7 +121,7 @@ func TestTypedName(t *testing.T) {
 	p := New()
 	expected := plugin.TypedName{
 		Type: PrepareDataPluginType,
-		Name: ApproxPrefixCachePrepareDataPluginName,
+		Name: ApproxPrefixCachePlugin,
 	}
 	assert.Equal(t, expected, p.TypedName())
 }

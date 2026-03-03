@@ -33,8 +33,8 @@ var _ requestcontrol.PrepareDataPlugin = &ApproxPrefixCache{}
 
 const (
 	// PrepareDataPluginType is the type for plugins that prepare data for scheduling.
-	PrepareDataPluginType                  = "prepare-data-plugin"
-	ApproxPrefixCachePrepareDataPluginName = "approx-prefix-cache-prepare-data-plugin"
+	PrepareDataPluginType   = "prepare-data-plugin"
+	ApproxPrefixCachePlugin = "approx-prefix-cache"
 )
 
 // ApproxPrefixCache is a plugin that prepares data consumed by approx prefix cache aware scheduling.
@@ -53,7 +53,7 @@ func New() *ApproxPrefixCache {
 func (p *ApproxPrefixCache) TypedName() plugin.TypedName {
 	return plugin.TypedName{
 		Type: PrepareDataPluginType,
-		Name: ApproxPrefixCachePrepareDataPluginName,
+		Name: ApproxPrefixCachePlugin,
 	}
 }
 
