@@ -19,18 +19,14 @@ package prefix
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"sync"
 	"time"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
-	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 	attrprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/prefix"
-	prepdataprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/preparerequestdata/approximateprefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 )
 
@@ -64,89 +60,46 @@ const (
 	PodActiveCheckInterval = 2 * time.Minute
 )
 
-// Plugin implements the prefix cache aware scoring and pre-request logic.
+// Plugin implements the prefix cache aware scoring logic.
 type Plugin struct {
-	typedName   plugin.TypedName
-	config      prepdataprefix.Config
-	indexer     prepdataprefix.Indexer
-	pluginState *plugin.PluginState
-	wg          sync.WaitGroup // Used for waiting on async cache updates in tests.
+	typedName plugin.TypedName
 }
 
 // compile-time type assertions
 var (
-	_ framework.Scorer          = &Plugin{}
-	_ requestcontrol.PreRequest = &Plugin{}
+	_ framework.Scorer = &Plugin{}
 )
 
+type metricsReporter struct{}
+
+func (m *metricsReporter) RecordPrefixCacheSize(size int64) {
+	metrics.RecordPrefixCacheSize(size)
+}
+
+func (m *metricsReporter) RecordPrefixCacheMatch(matchedTokens, totalTokens int) {
+	metrics.RecordPrefixCacheMatch(matchedTokens, totalTokens)
+}
+
 // PrefixCachePluginFactory defines the factory function for the Prefix plugin.
-func PrefixCachePluginFactory(name string, rawParameters json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
-	parameters := prepdataprefix.DefaultConfig
-	if rawParameters != nil {
-		if err := json.Unmarshal(rawParameters, &parameters); err != nil {
-			return nil, fmt.Errorf("failed to parse %s plugin parameters: %w", attrprefix.PrefixCachePluginType, err)
-		}
-	}
-
-	// Share the indexer and plugin state with the prefix prepare data plugin.
-	// If it doesn't exist, this will create it.
-	prepareDataPlugin, err := plugin.PluginByType[*prepdataprefix.PrepareData](handle, prepdataprefix.ApproxPrefixCachePlugin)
-	var indexer prepdataprefix.Indexer
-	var pluginState *plugin.PluginState
-	if err == nil {
-		indexer = prepareDataPlugin.Indexer()
-		pluginState = prepareDataPlugin.PluginState()
-	}
-
-	p, err := New(handle.Context(), parameters, indexer, pluginState)
+func PrefixCachePluginFactory(name string, _ json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
+	p, err := New(handle.Context())
 	if err != nil {
 		return nil, err
 	}
-
-	p.WithName(name)
+	if name != "" {
+		p = p.WithName(name)
+	}
 	return p, nil
 }
 
 // New initializes a new prefix Plugin.
-func New(ctx context.Context, config prepdataprefix.Config, indexer prepdataprefix.Indexer, pluginState *plugin.PluginState) (*Plugin, error) {
-	//nolint:staticcheck // BlockSize is deprecated, but we check it here to provide a migration path for users.
-	if config.BlockSize > 0 && config.BlockSizeTokens <= 0 {
-		return nil, fmt.Errorf("invalid configuration: BlockSize (%d) is deprecated; please use BlockSizeTokens instead to define the cache block size in tokens", config.BlockSize)
-	}
-
-	if !config.AutoTune && config.BlockSizeTokens <= 0 {
-		return nil, fmt.Errorf("invalid configuration: BlockSizeTokens must be > 0 when AutoTune is disabled (current value: %d)", config.BlockSizeTokens)
-	}
-
-	if indexer == nil {
-		indexer = prepdataprefix.NewIndexer(ctx, config.LRUCapacityPerServer)
-	}
-
-	// If pluginState is nil, we initialize it here. This ensures that the state object
-	// (and its background cleanup goroutine) is created exactly once during the plugin's construction.
-	if pluginState == nil {
-		pluginState = plugin.NewPluginState(ctx)
-	}
-
+func New(_ context.Context) (*Plugin, error) {
 	return &Plugin{
 		typedName: plugin.TypedName{
 			Type: attrprefix.PrefixCachePluginType,
 			Name: attrprefix.PrefixCachePluginType,
 		},
-		config:      config,
-		indexer:     indexer,
-		pluginState: pluginState,
 	}, nil
-}
-
-// Indexer returns the shared indexer.
-func (p *Plugin) Indexer() prepdataprefix.Indexer {
-	return p.indexer
-}
-
-// SetIndexer sets the shared indexer.
-func (p *Plugin) SetIndexer(indexer prepdataprefix.Indexer) {
-	p.indexer = indexer
 }
 
 // TypedName returns the type and name of this plugin instance.
@@ -201,6 +154,7 @@ func (p *Plugin) Score(ctx context.Context, _ *framework.CycleState, _ *framewor
 	}
 	return scores
 }
+<<<<<<< HEAD
 
 // PreRequest records in the shared indexer the result of the scheduling selection.
 // It updates the indexer with the prefix hashes for the selected endpoint(s).
@@ -406,3 +360,5 @@ func GetBlockSize(endpoints []framework.Endpoint, config Config) int {
 	}
 	return p.config.BlockSizeTokens
 }
+=======
+>>>>>>> 567bd0be (move indexer out, also inject metrics exported into preparedata to set the code pattern like a framework)
