@@ -119,6 +119,12 @@ var currentCodeExceptionMap = map[string][]string{
 	"pkg/epp/framework/plugins/requestcontrol/requestdataproducer/predictedlatency/training_test.go": {
 		"sidecars/latencypredictorasync",
 	},
+	"pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix/indexer.go": {
+		"pkg/epp/metrics",
+	},
+	"pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix/plugin.go": {
+		"pkg/epp/metrics",
+	},
 }
 
 func init() {
