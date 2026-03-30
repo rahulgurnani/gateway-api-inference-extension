@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	ApproxPrefixCachePluginType = "approx-prefix-cache-data-producer"
+	ApproxPrefixCacheProducerPluginType = "approx-prefix-cache-producer"
 )
 
 var (
