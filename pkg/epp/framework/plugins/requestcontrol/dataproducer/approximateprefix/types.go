@@ -23,8 +23,8 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 )
 
-// metricsReporter is an interface for reporting metrics from the indexer.
-type metricsReporter interface {
+// MetricsReporter is an interface for reporting metrics from the indexer.
+type MetricsReporter interface {
 	RecordPrefixCacheSize(size int64)
 	RecordPrefixCacheMatch(matchedTokens, totalTokens int)
 }
@@ -36,7 +36,7 @@ type indexerInterface interface {
 	Add(hashes []blockHash, server server)
 	RemovePod(server ServerID)
 	Pods() []ServerID
-	setMetricsReporter(reporter metricsReporter)
+	SetMetricsReporter(reporter MetricsReporter)
 }
 
 // podSet holds a set of pods that may have a specific prefix hash.

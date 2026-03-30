@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	ApproxPrefixCacheProducerPluginType = "approx-prefix-cache-producer"
+	ApproxPrefixCachePluginType = "approx-prefix-cache-producer"
 )
 
 var (
@@ -47,7 +47,7 @@ type prepareData struct {
 	config      config
 	indexerInst indexerInterface
 	pluginState *plugin.PluginState
-	metrics     metricsReporter
+	metrics     MetricsReporter
 	wg          sync.WaitGroup // Used for waiting on async cache updates in tests.
 }
 
@@ -67,7 +67,7 @@ func (p *prepareData) Produces() map[string]any {
 }
 
 // newPrepareData returns a new PrepareData plugin.
-func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pluginState *plugin.PluginState, metrics metricsReporter) (*prepareData, error) {
+func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pluginState *plugin.PluginState, metrics MetricsReporter) (*prepareData, error) {
 	log.FromContext(ctx).V(logutil.DEFAULT).Info("Prefix PrepareData initialized", "config", config)
 
 	//nolint:staticcheck // BlockSize is deprecated, but we check it here to provide a migration path for users.
@@ -141,8 +141,8 @@ func (p *prepareData) PluginState() *plugin.PluginState {
 	return p.pluginState
 }
 
-// setMetricsReporter sets the metrics reporter for the plugin.
-func (p *prepareData) setMetricsReporter(reporter metricsReporter) {
+// SetMetricsReporter sets the metrics reporter for the plugin.
+func (p *prepareData) SetMetricsReporter(reporter MetricsReporter) {
 	p.metrics = reporter
 }
 

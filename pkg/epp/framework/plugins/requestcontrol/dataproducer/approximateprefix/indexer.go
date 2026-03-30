@@ -33,11 +33,11 @@ type indexer struct {
 	hashToPods     map[blockHash]podSet                         // the lookup data structure to find pods that have the blockHash cached
 	podToLRU       map[ServerID]*lru.Cache[blockHash, struct{}] // key is pod namespacedName, value is an LRU cache
 	defaultLRUSize int
-	metrics        metricsReporter
+	metrics        MetricsReporter
 }
 
 // newIndexer initializes an indexer with size limits and starts cache size reporting.
-func newIndexer(ctx context.Context, defaultLRUSize int, metrics metricsReporter) indexerInterface {
+func newIndexer(ctx context.Context, defaultLRUSize int, metrics MetricsReporter) indexerInterface {
 	i := &indexer{
 		hashToPods:     make(map[blockHash]podSet),
 		podToLRU:       make(map[ServerID]*lru.Cache[blockHash, struct{}]),
@@ -195,7 +195,7 @@ func (i *indexer) Pods() []ServerID {
 	return pods
 }
 
-func (i *indexer) setMetricsReporter(reporter metricsReporter) {
+func (i *indexer) SetMetricsReporter(reporter MetricsReporter) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.metrics = reporter
