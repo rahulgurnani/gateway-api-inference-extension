@@ -27,12 +27,6 @@ import (
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 )
 
-// MetricsReporter is an interface for reporting metrics from the indexer.
-type MetricsReporter interface {
-	RecordPrefixCacheSize(size int64)
-	RecordPrefixCacheMatch(matchedTokens, totalTokens int)
-}
-
 // indexer implements the Indexer interface.
 type indexer struct {
 	mu             sync.RWMutex
@@ -42,8 +36,8 @@ type indexer struct {
 	metrics        MetricsReporter
 }
 
-// NewIndexer initializes an indexer with size limits and starts cache size reporting.
-func NewIndexer(ctx context.Context, defaultLRUSize int, metrics MetricsReporter) Indexer {
+// newIndexer initializes an indexer with size limits and starts cache size reporting.
+func newIndexer(ctx context.Context, defaultLRUSize int, metrics MetricsReporter) Indexer {
 	i := &indexer{
 		hashToPods:     make(map[BlockHash]PodSet),
 		podToLRU:       make(map[ServerID]*lru.Cache[BlockHash, struct{}]),

@@ -36,7 +36,7 @@ func TestPrepareRequestData(t *testing.T) {
 		LRUCapacityPerServer:   DefaultLRUCapacityPerServer,
 	}
 	// Test the "initialize if nil" pattern
-	p, err := NewPrepareData(context.Background(), config, nil, nil, nil)
+	p, err := newPrepareData(context.Background(), config, nil, nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, p.PluginState())
 
@@ -73,7 +73,7 @@ func TestPreRequest(t *testing.T) {
 		MaxPrefixBlocksToMatch: DefaultMaxPrefixBlocks,
 		LRUCapacityPerServer:   DefaultLRUCapacityPerServer,
 	}
-	p, _ := NewPrepareData(context.Background(), config, nil, nil, nil)
+	p, _ := newPrepareData(context.Background(), config, nil, nil, nil)
 
 	endpoint1 := fwksched.NewEndpoint(&fwkdl.EndpointMetadata{NamespacedName: k8stypes.NamespacedName{Name: "pod1", Namespace: "default"}}, fwkdl.NewMetrics(), fwkdl.NewAttributes())
 	req1 := &fwksched.LLMRequest{
@@ -106,7 +106,7 @@ func TestPreRequest(t *testing.T) {
 	p.wg.Wait()
 
 	// 4. Verify indexer was updated
-	hashes := HashPrompt(context.Background(), req1, 4, DefaultMaxPrefixBlocks)
+	hashes := hashPrompt(context.Background(), req1, 4, DefaultMaxPrefixBlocks)
 	for _, hash := range hashes {
 		pods := p.indexer.Get(hash)
 		assert.Contains(t, pods, ServerID(endpoint1.GetMetadata().NamespacedName))
@@ -134,12 +134,12 @@ func TestPrepareDataValidation(t *testing.T) {
 	}}
 
 	for _, config := range validConfigs {
-		_, err := NewPrepareData(context.Background(), config, nil, nil, nil)
+		_, err := newPrepareData(context.Background(), config, nil, nil, nil)
 		assert.NoError(t, err)
 	}
 
 	for _, config := range invalidConfigs {
-		_, err := NewPrepareData(context.Background(), config, nil, nil, nil)
+		_, err := newPrepareData(context.Background(), config, nil, nil, nil)
 		assert.Error(t, err)
 	}
 }

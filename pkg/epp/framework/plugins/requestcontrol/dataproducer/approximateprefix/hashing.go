@@ -28,10 +28,10 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
-// HashPrompt divides the prompt into blocks and calculates a prefix cache hash for each block.
+// hashPrompt divides the prompt into blocks and calculates a prefix cache hash for each block.
 // The first block hash includes the model name and cache salt (if provided).
 // For subsequent blocks, the hash is calculated as: hash(block i content, hash(i-1)).
-func HashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTokens int, maxPrefixBlocks int) []BlockHash {
+func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTokens int, maxPrefixBlocks int) []BlockHash {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	if request == nil || request.Body == nil {
 		loggerDebug.Info("Request or request data is nil, skipping hashing")

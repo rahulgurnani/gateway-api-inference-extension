@@ -23,6 +23,12 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 )
 
+// MetricsReporter is an interface for reporting metrics from the indexer.
+type MetricsReporter interface {
+	RecordPrefixCacheSize(size int64)
+	RecordPrefixCacheMatch(matchedTokens, totalTokens int)
+}
+
 // Indexer maintains an LRU cache of prompt prefix hashes and the server(s) that might have that
 // prefix cached.
 type Indexer interface {
@@ -112,11 +118,6 @@ const (
 	// averageCharactersPerToken is an estimated average characters per token.
 	averageCharactersPerToken = 4
 )
-
-// AverageCharactersPerToken returns the estimated average characters per token.
-func AverageCharactersPerToken() int {
-	return averageCharactersPerToken
-}
 
 // Config defines the configuration for the prefix cache plugins.
 type Config struct {

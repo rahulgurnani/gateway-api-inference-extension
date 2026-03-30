@@ -66,8 +66,8 @@ func (p *PrepareData) Produces() map[string]any {
 	return map[string]any{attrprefix.PrefixCacheMatchInfoKey: attrprefix.PrefixCacheMatchInfo{}}
 }
 
-// NewPrepareData returns a new PrepareData plugin.
-func NewPrepareData(ctx context.Context, config Config, handle plugin.Handle, pluginState *plugin.PluginState, metrics MetricsReporter) (*PrepareData, error) {
+// newPrepareData returns a new PrepareData plugin.
+func newPrepareData(ctx context.Context, config Config, handle plugin.Handle, pluginState *plugin.PluginState, metrics MetricsReporter) (*PrepareData, error) {
 	log.FromContext(ctx).V(logutil.DEFAULT).Info("Prefix PrepareData initialized", "config", config)
 
 	//nolint:staticcheck // BlockSize is deprecated, but we check it here to provide a migration path for users.
@@ -79,7 +79,7 @@ func NewPrepareData(ctx context.Context, config Config, handle plugin.Handle, pl
 		return nil, fmt.Errorf("invalid configuration: BlockSizeTokens must be > 0 when AutoTune is disabled (current value: %d)", config.BlockSizeTokens)
 	}
 
-	indexer := NewIndexer(ctx, config.LRUCapacityPerServer, metrics)
+	indexer := newIndexer(ctx, config.LRUCapacityPerServer, metrics)
 
 	// If pluginState is nil, we initialize it here. This ensures that the state object
 	// (and its background cleanup goroutine) is created exactly once during the plugin's construction.
@@ -149,7 +149,7 @@ func (p *PrepareData) SetMetricsReporter(reporter MetricsReporter) {
 // PrepareRequestData is called by the director before scheduling requests.
 func (p *PrepareData) PrepareRequestData(ctx context.Context, request *framework.LLMRequest, pods []framework.Endpoint) error {
 	blockSize := p.GetBlockSize(pods)
-	hashes := HashPrompt(ctx, request, blockSize, p.config.MaxPrefixBlocksToMatch)
+	hashes := hashPrompt(ctx, request, blockSize, p.config.MaxPrefixBlocksToMatch)
 	total := len(hashes)
 	prefixCacheServers := p.matchLongestPrefix(ctx, hashes)
 
@@ -208,7 +208,7 @@ func (p *PrepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 		total := len(state.PrefixHashes)
 		matchLen := state.PrefixCacheServers[ServerID(targetEndpoint.GetMetadata().NamespacedName)]
 		blockSize := p.GetBlockSize(primaryProfileResult.TargetEndpoints)
-		avgChars := AverageCharactersPerToken()
+		avgChars := averageCharactersPerToken
 		p.metrics.RecordPrefixCacheMatch(matchLen*blockSize*avgChars, total*blockSize*avgChars)
 	}
 }
@@ -267,8 +267,8 @@ func ApproxPrefixCacheFactory(name string, rawParameters json.RawMessage, handle
 		}
 	}
 
-	// pluginState will be initialized by NewPrepareData as we pass nil here.
-	p, err := NewPrepareData(handle.Context(), parameters, handle, nil, nil)
+	// pluginState will be initialized by newPrepareData as we pass nil here.
+	p, err := newPrepareData(handle.Context(), parameters, handle, nil, nil)
 	if err != nil {
 		return nil, err
 	}
