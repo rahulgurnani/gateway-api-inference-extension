@@ -23,12 +23,6 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 )
 
-// MetricsReporter is an interface for reporting metrics from the indexer.
-type MetricsReporter interface {
-	RecordPrefixCacheSize(size int64)
-	RecordPrefixCacheMatch(matchedTokens, totalTokens int)
-}
-
 // indexerInterface maintains an LRU cache of prompt prefix hashes and the server(s) that might have that
 // prefix cached.
 type indexerInterface interface {
@@ -36,7 +30,6 @@ type indexerInterface interface {
 	Add(hashes []blockHash, server server)
 	RemovePod(server ServerID)
 	Pods() []ServerID
-	SetMetricsReporter(reporter MetricsReporter)
 }
 
 // podSet holds a set of pods that may have a specific prefix hash.

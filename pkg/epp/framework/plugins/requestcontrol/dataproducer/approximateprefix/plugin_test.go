@@ -36,7 +36,7 @@ func TestPrepareRequestData(t *testing.T) {
 		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
 	}
 	// Test the "initialize if nil" pattern
-	p, err := newPrepareData(context.Background(), config, nil, nil, nil)
+	p, err := newPrepareData(context.Background(), config, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, p.PluginState())
 
@@ -73,7 +73,7 @@ func TestPreRequest(t *testing.T) {
 		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
 		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
 	}
-	p, _ := newPrepareData(context.Background(), config, nil, nil, nil)
+	p, _ := newPrepareData(context.Background(), config, nil)
 
 	endpoint1 := fwksched.NewEndpoint(&fwkdl.EndpointMetadata{NamespacedName: k8stypes.NamespacedName{Name: "pod1", Namespace: "default"}}, fwkdl.NewMetrics(), fwkdl.NewAttributes())
 	req1 := &fwksched.LLMRequest{
@@ -134,12 +134,12 @@ func TestPrepareDataValidation(t *testing.T) {
 	}}
 
 	for _, config := range validConfigs {
-		_, err := newPrepareData(context.Background(), config, nil, nil, nil)
+		_, err := newPrepareData(context.Background(), config, nil)
 		assert.NoError(t, err)
 	}
 
 	for _, config := range invalidConfigs {
-		_, err := newPrepareData(context.Background(), config, nil, nil, nil)
+		_, err := newPrepareData(context.Background(), config, nil)
 		assert.Error(t, err)
 	}
 }

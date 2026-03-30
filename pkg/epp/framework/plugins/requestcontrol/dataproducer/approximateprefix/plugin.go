@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
 	attrprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/prefix"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
@@ -47,7 +48,6 @@ type prepareData struct {
 	config      config
 	indexerInst indexerInterface
 	pluginState *plugin.PluginState
-	metrics     MetricsReporter
 	wg          sync.WaitGroup // Used for waiting on async cache updates in tests.
 }
 
@@ -67,7 +67,7 @@ func (p *prepareData) Produces() map[string]any {
 }
 
 // newPrepareData returns a new PrepareData plugin.
-func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pluginState *plugin.PluginState, metrics MetricsReporter) (*prepareData, error) {
+func newPrepareData(ctx context.Context, config config, handle plugin.Handle) (*prepareData, error) {
 	log.FromContext(ctx).V(logutil.DEFAULT).Info("Prefix PrepareData initialized", "config", config)
 
 	//nolint:staticcheck // BlockSize is deprecated, but we check it here to provide a migration path for users.
@@ -78,14 +78,7 @@ func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pl
 	if !config.AutoTune && config.BlockSizeTokens <= 0 {
 		return nil, fmt.Errorf("invalid configuration: BlockSizeTokens must be > 0 when AutoTune is disabled (current value: %d)", config.BlockSizeTokens)
 	}
-
-	indexer := newIndexer(ctx, config.LRUCapacityPerServer, metrics)
-
-	// If pluginState is nil, we initialize it here. This ensures that the state object
-	// (and its background cleanup goroutine) is created exactly once during the plugin's construction.
-	if pluginState == nil {
-		pluginState = plugin.NewPluginState(ctx)
-	}
+	indexer := newIndexer(ctx, config.LRUCapacityPerServer)
 
 	p := &prepareData{
 		typedName: plugin.TypedName{
@@ -94,8 +87,7 @@ func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pl
 		},
 		config:      config,
 		indexerInst: indexer,
-		pluginState: pluginState,
-		metrics:     metrics,
+		pluginState: plugin.NewPluginState(ctx),
 	}
 
 	if handle != nil {
@@ -139,11 +131,6 @@ func (p *prepareData) indexer() indexerInterface {
 // PluginState returns the shared plugin state.
 func (p *prepareData) PluginState() *plugin.PluginState {
 	return p.pluginState
-}
-
-// SetMetricsReporter sets the metrics reporter for the plugin.
-func (p *prepareData) SetMetricsReporter(reporter MetricsReporter) {
-	p.metrics = reporter
 }
 
 // PrepareRequestData is called by the director before scheduling requests.
@@ -204,13 +191,11 @@ func (p *prepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 	}()
 
 	// Record metrics.
-	if p.metrics != nil {
-		total := len(state.PrefixHashes)
-		matchLen := state.PrefixCacheServers[ServerID(targetEndpoint.GetMetadata().NamespacedName)]
-		blockSize := p.GetBlockSize(primaryProfileResult.TargetEndpoints)
-		avgChars := averageCharactersPerToken
-		p.metrics.RecordPrefixCacheMatch(matchLen*blockSize*avgChars, total*blockSize*avgChars)
-	}
+	total := len(state.PrefixHashes)
+	matchLen := state.PrefixCacheServers[ServerID(targetEndpoint.GetMetadata().NamespacedName)]
+	blockSize := p.GetBlockSize(primaryProfileResult.TargetEndpoints)
+	avgChars := averageCharactersPerToken
+	metrics.RecordPrefixCacheMatch(matchLen*blockSize*avgChars, total*blockSize*avgChars)
 }
 
 func (p *prepareData) makeserver(targetEndpoint framework.Endpoint) server {
@@ -268,7 +253,7 @@ func ApproxPrefixCacheFactory(name string, rawParameters json.RawMessage, handle
 	}
 
 	// pluginState will be initialized by newPrepareData as we pass nil here.
-	p, err := newPrepareData(handle.Context(), parameters, handle, nil, nil)
+	p, err := newPrepareData(handle.Context(), parameters, handle)
 	if err != nil {
 		return nil, err
 	}
