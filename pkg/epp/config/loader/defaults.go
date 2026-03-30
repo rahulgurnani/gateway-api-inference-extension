@@ -25,7 +25,7 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/flowcontrol/registry"
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
-	prepdataprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/preparerequestdata/approximateprefix"
+	reqdataprodprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/openai"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/picker"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/profile"
@@ -56,7 +56,7 @@ func loadDefaultConfig() *configapi.EndpointPickerConfig {
 				Type: kvcacheutilization.KvCacheUtilizationScorerType,
 			},
 			{
-				Type: prepdataprefix.PrefixCacheDataProducerPluginType,
+				Type: reqdataprodprefix.ApproxPrefixCachePluginType,
 			},
 		},
 		SchedulingProfiles: []configapi.SchedulingProfile{
@@ -72,7 +72,7 @@ func loadDefaultConfig() *configapi.EndpointPickerConfig {
 						Weight:    &kvCacheUtilizationScorerWeight,
 					},
 					{
-						PluginRef: prepdataprefix.PrefixCacheDataProducerPluginType,
+						PluginRef: reqdataprodprefix.ApproxPrefixCachePluginType,
 						Weight:    &prefixCacheScorerWeight,
 					},
 				},
