@@ -23,30 +23,30 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 )
 
-// MetricsReporter is an interface for reporting metrics from the indexer.
-type MetricsReporter interface {
+// metricsReporter is an interface for reporting metrics from the indexer.
+type metricsReporter interface {
 	RecordPrefixCacheSize(size int64)
 	RecordPrefixCacheMatch(matchedTokens, totalTokens int)
 }
 
-// Indexer maintains an LRU cache of prompt prefix hashes and the server(s) that might have that
+// indexerInterface maintains an LRU cache of prompt prefix hashes and the server(s) that might have that
 // prefix cached.
-type Indexer interface {
-	Get(hash BlockHash) PodSet
-	Add(hashes []BlockHash, server Server)
+type indexerInterface interface {
+	Get(hash blockHash) podSet
+	Add(hashes []blockHash, server server)
 	RemovePod(server ServerID)
 	Pods() []ServerID
-	SetMetricsReporter(reporter MetricsReporter)
+	setMetricsReporter(reporter metricsReporter)
 }
 
-// PodSet holds a set of pods that may have a specific prefix hash.
-type PodSet map[ServerID]struct{}
+// podSet holds a set of pods that may have a specific prefix hash.
+type podSet map[ServerID]struct{}
 
-// BlockHash is a hash of a block of request data.
-type BlockHash uint64
+// blockHash is a hash of a block of request data.
+type blockHash uint64
 
-// Server contains information about a specific server/pod and its cache capacity.
-type Server struct {
+// server contains information about a specific server/pod and its cache capacity.
+type server struct {
 	ServerID
 	NumOfGPUBlocks int
 }
@@ -61,14 +61,14 @@ func (s ServerID) String() string {
 // SchedulingContextState is the state of this plugin to be used during a scheduling cycle.
 type SchedulingContextState struct {
 	// PrefixHashes is a list of prefix hashes of the request prompt broken into blocks.
-	PrefixHashes []BlockHash
+	PrefixHashes []blockHash
 	// A map of server to its longest prefix cache match length in blocks.
 	PrefixCacheServers map[ServerID]int
 }
 
 // Clone creates a deep copy of the SchedulingContextState.
 func (s *SchedulingContextState) Clone() plugin.StateData {
-	prefixHashes := make([]BlockHash, len(s.PrefixHashes))
+	prefixHashes := make([]blockHash, len(s.PrefixHashes))
 	copy(prefixHashes, s.PrefixHashes)
 	prefixCacheServers := make(map[ServerID]int, len(s.PrefixCacheServers))
 	for key, value := range s.PrefixCacheServers {
@@ -82,29 +82,29 @@ func (s *SchedulingContextState) Clone() plugin.StateData {
 }
 
 const (
-	// Experimental_DefaultPrefillProfile is a hardcoded profile name for prefill nodes.
+	// experimentalDefaultPrefillProfile is a hardcoded profile name for prefill nodes.
 	// In P/D disaggregation mode, the prefill and decode are usually represented as two different
 	// scheduling profiles to pick the prefill and decode endpoints. This constant defines the
 	// prefill profile name to ensure that the index is updated for the prefill endpoint and not
 	// only for the primary endpoint that will initially handle the request.
 	// This is hardcoded for now until we land on a canonical approach for plugins to identify
 	// prefill and decode endpoints (See https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/2080)
-	Experimental_DefaultPrefillProfile = "prefill"
+	experimentalDefaultPrefillProfile = "prefill"
 
-	// PodActiveCheckInterval is the interval at which we check if pods are still active.
-	PodActiveCheckInterval = 2 * time.Minute
+	// podActiveCheckInterval is the interval at which we check if pods are still active.
+	podActiveCheckInterval = 2 * time.Minute
 
-	// DefaultBlockSizeTokens is the default token block size (vLLM default is 16).
-	DefaultBlockSizeTokens = 16
+	// defaultBlockSizeTokens is the default token block size (vLLM default is 16).
+	defaultBlockSizeTokens = 16
 
-	// DefaultMaxPrefixBlocks is the maximum number of blocks to match.
+	// defaultMaxPrefixBlocks is the maximum number of blocks to match.
 	// Two long requests with the same prefix up to this limit will be indistinguishable.
 	// This parameter provides a trade-off between cache size, prefix matching speed and matching
 	// accuracy. Use a small value if most requests are short to reduce cache size and speed up the
 	// matching process. Use a large value if most requests are long to increase the matching accuracy.
-	DefaultMaxPrefixBlocks = 256
+	defaultMaxPrefixBlocks = 256
 
-	// DefaultLRUCapacityPerServer is the default capacity of the LRU indexer per server.
+	// defaultLRUCapacityPerServer is the default capacity of the LRU indexer per server.
 	// The indexer is an approximation to the actual prefix LRU cache state on the model servers per server (pod).
 	// A small capacity ensures a high accuracy of cache hit on the model server, but it will
 	// increase the chance of false negatives. A high capacity does the opposite.
@@ -113,14 +113,14 @@ const (
 	// about 16GB. The remaining HBM used for caching prefixes is 64GB. Each
 	// token is about 128KB in size, so we can cache 500K tokens. Using the default block size of 16
 	// in vLLM, we will have 250K / 16 = 31.25K blocks.
-	DefaultLRUCapacityPerServer = 31250
+	defaultLRUCapacityPerServer = 31250
 
 	// averageCharactersPerToken is an estimated average characters per token.
 	averageCharactersPerToken = 4
 )
 
-// Config defines the configuration for the prefix cache plugins.
-type Config struct {
+// config defines the configuration for the prefix cache plugins.
+type config struct {
 	// If set to true, the plugin will automatically adjust the configuration based on various
 	// metrics from the model servers.
 	AutoTune bool `json:"autoTune"`
@@ -134,11 +134,11 @@ type Config struct {
 	LRUCapacityPerServer int `json:"lruCapacityPerServer"`
 }
 
-// DefaultConfig provides sensible defaults for the prefix cache plugins.
-var DefaultConfig = Config{
+// defaultConfig provides sensible defaults for the prefix cache plugins.
+var defaultConfig = config{
 	AutoTune:               true,
 	BlockSize:              0,
-	BlockSizeTokens:        DefaultBlockSizeTokens,
-	MaxPrefixBlocksToMatch: DefaultMaxPrefixBlocks,
-	LRUCapacityPerServer:   DefaultLRUCapacityPerServer,
+	BlockSizeTokens:        defaultBlockSizeTokens,
+	MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
+	LRUCapacityPerServer:   defaultLRUCapacityPerServer,
 }

@@ -30,10 +30,10 @@ import (
 )
 
 func TestPrepareRequestData(t *testing.T) {
-	config := Config{
+	config := config{
 		BlockSizeTokens:        1,
-		MaxPrefixBlocksToMatch: DefaultMaxPrefixBlocks,
-		LRUCapacityPerServer:   DefaultLRUCapacityPerServer,
+		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
+		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
 	}
 	// Test the "initialize if nil" pattern
 	p, err := newPrepareData(context.Background(), config, nil, nil, nil)
@@ -68,10 +68,10 @@ func TestPrepareRequestData(t *testing.T) {
 }
 
 func TestPreRequest(t *testing.T) {
-	config := Config{
+	config := config{
 		BlockSizeTokens:        1,
-		MaxPrefixBlocksToMatch: DefaultMaxPrefixBlocks,
-		LRUCapacityPerServer:   DefaultLRUCapacityPerServer,
+		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
+		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
 	}
 	p, _ := newPrepareData(context.Background(), config, nil, nil, nil)
 
@@ -106,15 +106,15 @@ func TestPreRequest(t *testing.T) {
 	p.wg.Wait()
 
 	// 4. Verify indexer was updated
-	hashes := hashPrompt(context.Background(), req1, 4, DefaultMaxPrefixBlocks)
+	hashes := hashPrompt(context.Background(), req1, 4, defaultMaxPrefixBlocks)
 	for _, hash := range hashes {
-		pods := p.indexer.Get(hash)
+		pods := p.indexer().Get(hash)
 		assert.Contains(t, pods, ServerID(endpoint1.GetMetadata().NamespacedName))
 	}
 }
 
 func TestPrepareDataValidation(t *testing.T) {
-	validConfigs := []Config{{
+	validConfigs := []config{{
 		AutoTune:        false,
 		BlockSizeTokens: 1,
 	}, {
@@ -125,7 +125,7 @@ func TestPrepareDataValidation(t *testing.T) {
 		AutoTune:        true,
 		BlockSizeTokens: 0,
 	}}
-	invalidConfigs := []Config{{
+	invalidConfigs := []config{{
 		AutoTune:  false,
 		BlockSize: 1,
 	}, {

@@ -31,7 +31,7 @@ import (
 // hashPrompt divides the prompt into blocks and calculates a prefix cache hash for each block.
 // The first block hash includes the model name and cache salt (if provided).
 // For subsequent blocks, the hash is calculated as: hash(block i content, hash(i-1)).
-func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTokens int, maxPrefixBlocks int) []BlockHash {
+func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTokens int, maxPrefixBlocks int) []blockHash {
 	loggerDebug := log.FromContext(ctx).V(logutil.DEBUG)
 	if request == nil || request.Body == nil {
 		loggerDebug.Info("Request or request data is nil, skipping hashing")
@@ -65,7 +65,7 @@ func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTo
 	}
 
 	// Split the body into blocks of size cacheBlockSizeChars.
-	res := make([]BlockHash, 0, len(userInput)/cacheBlockSizeChars)
+	res := make([]blockHash, 0, len(userInput)/cacheBlockSizeChars)
 
 	h := xxhash.New()
 	// Different models should have different hashes even with the same body.
@@ -74,12 +74,12 @@ func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTo
 		_, _ = h.Write([]byte(cacheSalt))
 	}
 
-	prevBlockHash := BlockHash(h.Sum64())
+	prevBlockHash := blockHash(h.Sum64())
 	for i := 0; i+cacheBlockSizeChars <= len(userInput); i += cacheBlockSizeChars {
 		h.Reset()
 		_, _ = h.Write(userInput[i : i+cacheBlockSizeChars])
 		_, _ = h.Write(toBytes(prevBlockHash))
-		res = append(res, BlockHash(h.Sum64()))
+		res = append(res, blockHash(h.Sum64()))
 
 		prevBlockHash = res[len(res)-1]
 	}
@@ -87,7 +87,7 @@ func hashPrompt(ctx context.Context, request *scheduling.LLMRequest, blockSizeTo
 	return res
 }
 
-func toBytes(i BlockHash) []byte {
+func toBytes(i blockHash) []byte {
 	bytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bytes, uint64(i))
 	return bytes

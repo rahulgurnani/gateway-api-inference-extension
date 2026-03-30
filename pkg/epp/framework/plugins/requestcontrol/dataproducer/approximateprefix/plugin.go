@@ -37,37 +37,37 @@ const (
 )
 
 var (
-	_ requestcontrol.PrepareDataPlugin = &PrepareData{}
-	_ requestcontrol.PreRequest        = &PrepareData{}
+	_ requestcontrol.PrepareDataPlugin = &prepareData{}
+	_ requestcontrol.PreRequest        = &prepareData{}
 )
 
-// PrepareData is a plugin that prepares data consumed by approx prefix cache aware scheduling.
-type PrepareData struct {
+// prepareData is a plugin that prepares data consumed by approx prefix cache aware scheduling.
+type prepareData struct {
 	typedName   plugin.TypedName
-	config      Config
-	indexer     Indexer
+	config      config
+	indexerInst indexerInterface
 	pluginState *plugin.PluginState
-	metrics     MetricsReporter
+	metrics     metricsReporter
 	wg          sync.WaitGroup // Used for waiting on async cache updates in tests.
 }
 
 // TypedName returns the type and name of the plugin.
-func (p *PrepareData) TypedName() plugin.TypedName {
+func (p *prepareData) TypedName() plugin.TypedName {
 	return p.typedName
 }
 
 // Consumes returns the data consumed by the plugin.
-func (p *PrepareData) Consumes() map[string]any {
+func (p *prepareData) Consumes() map[string]any {
 	return map[string]any{}
 }
 
 // Produces returns the data produced by the plugin.
-func (p *PrepareData) Produces() map[string]any {
+func (p *prepareData) Produces() map[string]any {
 	return map[string]any{attrprefix.PrefixCacheMatchInfoKey: attrprefix.PrefixCacheMatchInfo{}}
 }
 
 // newPrepareData returns a new PrepareData plugin.
-func newPrepareData(ctx context.Context, config Config, handle plugin.Handle, pluginState *plugin.PluginState, metrics MetricsReporter) (*PrepareData, error) {
+func newPrepareData(ctx context.Context, config config, handle plugin.Handle, pluginState *plugin.PluginState, metrics metricsReporter) (*prepareData, error) {
 	log.FromContext(ctx).V(logutil.DEFAULT).Info("Prefix PrepareData initialized", "config", config)
 
 	//nolint:staticcheck // BlockSize is deprecated, but we check it here to provide a migration path for users.
@@ -87,13 +87,13 @@ func newPrepareData(ctx context.Context, config Config, handle plugin.Handle, pl
 		pluginState = plugin.NewPluginState(ctx)
 	}
 
-	p := &PrepareData{
+	p := &prepareData{
 		typedName: plugin.TypedName{
 			Type: ApproxPrefixCachePluginType,
 			Name: ApproxPrefixCachePluginType,
 		},
 		config:      config,
-		indexer:     indexer,
+		indexerInst: indexer,
 		pluginState: pluginState,
 		metrics:     metrics,
 	}
@@ -106,8 +106,8 @@ func newPrepareData(ctx context.Context, config Config, handle plugin.Handle, pl
 }
 
 // CleanUpInactivePods starts a goroutine that periodically removes inactive pods from the indexer.
-func (p *PrepareData) CleanUpInactivePods(ctx context.Context, handle plugin.Handle) {
-	ticker := time.NewTicker(PodActiveCheckInterval)
+func (p *prepareData) CleanUpInactivePods(ctx context.Context, handle plugin.Handle) {
+	ticker := time.NewTicker(podActiveCheckInterval)
 	defer ticker.Stop()
 
 	for {
@@ -121,9 +121,9 @@ func (p *PrepareData) CleanUpInactivePods(ctx context.Context, handle plugin.Han
 				activePods[ServerID(nsn)] = struct{}{}
 			}
 
-			for _, pod := range p.indexer.Pods() {
+			for _, pod := range p.indexerInst.Pods() {
 				if _, ok := activePods[pod]; !ok {
-					p.indexer.RemovePod(pod)
+					p.indexerInst.RemovePod(pod)
 					log.FromContext(ctx).V(logutil.VERBOSE).Info("Removed pod not in active set", "pod", pod)
 				}
 			}
@@ -131,23 +131,23 @@ func (p *PrepareData) CleanUpInactivePods(ctx context.Context, handle plugin.Han
 	}
 }
 
-// Indexer returns the shared indexer.
-func (p *PrepareData) Indexer() Indexer {
-	return p.indexer
+// indexer returns the shared indexer.
+func (p *prepareData) indexer() indexerInterface {
+	return p.indexerInst
 }
 
 // PluginState returns the shared plugin state.
-func (p *PrepareData) PluginState() *plugin.PluginState {
+func (p *prepareData) PluginState() *plugin.PluginState {
 	return p.pluginState
 }
 
-// SetMetricsReporter sets the metrics reporter for the plugin.
-func (p *PrepareData) SetMetricsReporter(reporter MetricsReporter) {
+// setMetricsReporter sets the metrics reporter for the plugin.
+func (p *prepareData) setMetricsReporter(reporter metricsReporter) {
 	p.metrics = reporter
 }
 
 // PrepareRequestData is called by the director before scheduling requests.
-func (p *PrepareData) PrepareRequestData(ctx context.Context, request *framework.LLMRequest, pods []framework.Endpoint) error {
+func (p *prepareData) PrepareRequestData(ctx context.Context, request *framework.LLMRequest, pods []framework.Endpoint) error {
 	blockSize := p.GetBlockSize(pods)
 	hashes := hashPrompt(ctx, request, blockSize, p.config.MaxPrefixBlocksToMatch)
 	total := len(hashes)
@@ -172,18 +172,18 @@ func (p *PrepareData) PrepareRequestData(ctx context.Context, request *framework
 
 // PreRequest records in the shared indexer the result of the scheduling selection.
 // It updates the indexer with the prefix hashes for the selected endpoint(s).
-func (p *PrepareData) PreRequest(ctx context.Context, request *framework.LLMRequest, schedulingResult *framework.SchedulingResult) {
+func (p *prepareData) PreRequest(ctx context.Context, request *framework.LLMRequest, schedulingResult *framework.SchedulingResult) {
 	primaryProfileResult := schedulingResult.ProfileResults[schedulingResult.PrimaryProfileName]
 	if len(primaryProfileResult.TargetEndpoints) == 0 {
 		return
 	}
 
 	targetEndpoint := primaryProfileResult.TargetEndpoints[0]
-	servers := []Server{p.makeServer(targetEndpoint)}
+	servers := []server{p.makeserver(targetEndpoint)}
 
 	// Also record for prefill node if present in P/D disaggregated mode.
-	if pr, exists := schedulingResult.ProfileResults[Experimental_DefaultPrefillProfile]; exists && len(pr.TargetEndpoints) > 0 {
-		servers = append(servers, p.makeServer(pr.TargetEndpoints[0]))
+	if pr, exists := schedulingResult.ProfileResults[experimentalDefaultPrefillProfile]; exists && len(pr.TargetEndpoints) > 0 {
+		servers = append(servers, p.makeserver(pr.TargetEndpoints[0]))
 	}
 
 	// Read state saved during PrepareRequestData.
@@ -199,7 +199,7 @@ func (p *PrepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 	go func() {
 		defer p.wg.Done()
 		for _, s := range servers {
-			p.indexer.Add(state.PrefixHashes, s)
+			p.indexerInst.Add(state.PrefixHashes, s)
 		}
 	}()
 
@@ -213,25 +213,25 @@ func (p *PrepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 	}
 }
 
-func (p *PrepareData) makeServer(targetEndpoint framework.Endpoint) Server {
-	gpuBlocks := DefaultLRUCapacityPerServer
+func (p *prepareData) makeserver(targetEndpoint framework.Endpoint) server {
+	gpuBlocks := defaultLRUCapacityPerServer
 	if p.config.AutoTune && targetEndpoint.GetMetrics().CacheNumGPUBlocks > 0 {
 		gpuBlocks = targetEndpoint.GetMetrics().CacheNumGPUBlocks
 	}
-	return Server{
+	return server{
 		ServerID:       ServerID(targetEndpoint.GetMetadata().NamespacedName),
 		NumOfGPUBlocks: gpuBlocks,
 	}
 }
 
 // matchLongestPrefix returns a map of servers and length of prefix that each server caches, prefix length is defined in blocks.
-func (p *PrepareData) matchLongestPrefix(ctx context.Context, hashes []BlockHash) map[ServerID]int {
+func (p *prepareData) matchLongestPrefix(ctx context.Context, hashes []blockHash) map[ServerID]int {
 	loggerTrace := log.FromContext(ctx).V(logutil.TRACE)
 	res := make(map[ServerID]int)
 
 	// Use a greedy strategy to search from the longest prefix.
 	for _, hash := range hashes {
-		cachedServers := p.indexer.Get(hash)
+		cachedServers := p.indexerInst.Get(hash)
 		if len(cachedServers) == 0 {
 			break
 		}
@@ -244,7 +244,7 @@ func (p *PrepareData) matchLongestPrefix(ctx context.Context, hashes []BlockHash
 }
 
 // GetBlockSize returns the block size in tokens, potentially auto-tuned from endpoint metrics.
-func (p *PrepareData) GetBlockSize(endpoints []framework.Endpoint) int {
+func (p *prepareData) GetBlockSize(endpoints []framework.Endpoint) int {
 	if !p.config.AutoTune || len(endpoints) == 0 {
 		return p.config.BlockSizeTokens
 	}
@@ -260,7 +260,7 @@ func (p *PrepareData) GetBlockSize(endpoints []framework.Endpoint) int {
 
 // ApproxPrefixCacheFactory is the factory function for the prefix cache prepare data plugin.
 func ApproxPrefixCacheFactory(name string, rawParameters json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
-	parameters := DefaultConfig
+	parameters := defaultConfig
 	if rawParameters != nil {
 		if err := json.Unmarshal(rawParameters, &parameters); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal prefix cache parameters: %w", err)

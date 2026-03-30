@@ -42,12 +42,11 @@ import (
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/fairness"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/ordering"
-	reqdataprodprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/openai"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/picker"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/profile"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/kvcacheutilization"
-	_ "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/prefix"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/prefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/queuedepth"
 	"sigs.k8s.io/gateway-api-inference-extension/test/utils"
 )
@@ -150,8 +149,8 @@ func TestLoadRawConfiguration(t *testing.T) {
 						Type: kvcacheutilization.KvCacheUtilizationScorerType,
 					},
 					{
-						Name: reqdataprodprefix.ApproxPrefixCachePluginType,
-						Type: reqdataprodprefix.ApproxPrefixCachePluginType,
+						Name: prefix.PrefixCacheScorerPluginType,
+						Type: prefix.PrefixCacheScorerPluginType,
 					},
 				},
 				SchedulingProfiles: []configapi.SchedulingProfile{
@@ -167,7 +166,7 @@ func TestLoadRawConfiguration(t *testing.T) {
 								Weight:    &kvCacheUtilizationScorerWeight,
 							},
 							{
-								PluginRef: reqdataprodprefix.ApproxPrefixCachePluginType,
+								PluginRef: prefix.PrefixCacheScorerPluginType,
 								Weight:    &prefixCacheScorerWeight,
 							},
 						},

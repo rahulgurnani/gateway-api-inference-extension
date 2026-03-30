@@ -27,20 +27,20 @@ import (
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 )
 
-// indexer implements the Indexer interface.
+// indexer implements the indexerInterface interface.
 type indexer struct {
 	mu             sync.RWMutex
-	hashToPods     map[BlockHash]PodSet                         // the lookup data structure to find pods that have the BlockHash cached
-	podToLRU       map[ServerID]*lru.Cache[BlockHash, struct{}] // key is pod namespacedName, value is an LRU cache
+	hashToPods     map[blockHash]podSet                         // the lookup data structure to find pods that have the blockHash cached
+	podToLRU       map[ServerID]*lru.Cache[blockHash, struct{}] // key is pod namespacedName, value is an LRU cache
 	defaultLRUSize int
-	metrics        MetricsReporter
+	metrics        metricsReporter
 }
 
 // newIndexer initializes an indexer with size limits and starts cache size reporting.
-func newIndexer(ctx context.Context, defaultLRUSize int, metrics MetricsReporter) Indexer {
+func newIndexer(ctx context.Context, defaultLRUSize int, metrics metricsReporter) indexerInterface {
 	i := &indexer{
-		hashToPods:     make(map[BlockHash]PodSet),
-		podToLRU:       make(map[ServerID]*lru.Cache[BlockHash, struct{}]),
+		hashToPods:     make(map[blockHash]podSet),
+		podToLRU:       make(map[ServerID]*lru.Cache[blockHash, struct{}]),
 		defaultLRUSize: defaultLRUSize,
 		metrics:        metrics,
 	}
@@ -50,7 +50,7 @@ func newIndexer(ctx context.Context, defaultLRUSize int, metrics MetricsReporter
 }
 
 // Add adds a list of prefix hashes to the cache, tied to the server.
-func (i *indexer) Add(hashes []BlockHash, pod Server) {
+func (i *indexer) Add(hashes []blockHash, pod server) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
@@ -76,7 +76,7 @@ func (i *indexer) Add(hashes []BlockHash, pod Server) {
 	for _, hash := range hashes {
 		podIDs := i.hashToPods[hash]
 		if podIDs == nil {
-			podIDs = make(PodSet)
+			podIDs = make(podSet)
 		}
 		podIDs[pod.ServerID] = struct{}{}
 		i.hashToPods[hash] = podIDs
@@ -84,7 +84,7 @@ func (i *indexer) Add(hashes []BlockHash, pod Server) {
 }
 
 // Get returns a set of servers that have the given prefix hash cached.
-func (i *indexer) Get(hash BlockHash) PodSet {
+func (i *indexer) Get(hash blockHash) podSet {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -93,7 +93,7 @@ func (i *indexer) Get(hash BlockHash) PodSet {
 		return nil
 	}
 
-	res := make(PodSet, len(pods))
+	res := make(podSet, len(pods))
 	for pod := range pods {
 		// Deep copy to avoid race condition.
 		res[pod] = struct{}{}
@@ -103,8 +103,8 @@ func (i *indexer) Get(hash BlockHash) PodSet {
 }
 
 // makeEvictionFn returns a per-pod LRU eviction callback that removes the pod from hashToPods on eviction.
-func (i *indexer) makeEvictionFn(pod ServerID) func(BlockHash, struct{}) {
-	return func(hash BlockHash, _ struct{}) {
+func (i *indexer) makeEvictionFn(pod ServerID) func(blockHash, struct{}) {
+	return func(hash blockHash, _ struct{}) {
 		// Remove the pod from the hash→pods map
 		if podSet, ok := i.hashToPods[hash]; ok {
 			delete(podSet, pod)
@@ -195,7 +195,7 @@ func (i *indexer) Pods() []ServerID {
 	return pods
 }
 
-func (i *indexer) SetMetricsReporter(reporter MetricsReporter) {
+func (i *indexer) setMetricsReporter(reporter metricsReporter) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.metrics = reporter
