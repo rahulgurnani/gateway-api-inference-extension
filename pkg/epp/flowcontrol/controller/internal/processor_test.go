@@ -33,6 +33,7 @@ import (
 	testclock "k8s.io/utils/clock/testing"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/usagelimits"
 
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/backend/metrics"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/flowcontrol/contracts"
@@ -87,7 +88,7 @@ type testHarness struct {
 	clock              *testclock.FakeClock
 	logger             logr.Logger
 	saturationDetector *mockSaturationDetector
-	podLocator         *mocks.MockPodLocator
+	endpointCandidates *mocks.MockEndpointCandidates
 
 	// --- Centralized Mock State ---
 	// The harness's mutex protects the single source of truth for all mock state.
@@ -108,7 +109,7 @@ func newTestHarness(t *testing.T, expiryCleanupInterval time.Duration) *testHarn
 		clock:              testclock.NewFakeClock(time.Now()),
 		logger:             logr.Discard(),
 		saturationDetector: &mockSaturationDetector{},
-		podLocator:         &mocks.MockPodLocator{Pods: []fwkdl.Endpoint{&metrics.FakePodMetrics{}}},
+		endpointCandidates: &mocks.MockEndpointCandidates{Candidates: []fwkdl.Endpoint{&metrics.FakePodMetrics{}}},
 		startSignal:        make(chan struct{}),
 		queues:             make(map[flowcontrol.FlowKey]*mocks.MockManagedQueue),
 		priorityFlows:      make(map[int][]flowcontrol.FlowKey),
@@ -136,7 +137,8 @@ func newTestHarness(t *testing.T, expiryCleanupInterval time.Duration) *testHarn
 		"test-pool",
 		h,
 		h.saturationDetector,
-		h.podLocator,
+		h.endpointCandidates,
+		usagelimits.DefaultPolicy(),
 		h.clock,
 		expiryCleanupInterval,
 		100,
@@ -154,12 +156,10 @@ func newTestHarness(t *testing.T, expiryCleanupInterval time.Duration) *testHarn
 func (h *testHarness) Start() {
 	h.t.Helper()
 	h.ctx, h.cancel = context.WithCancel(context.Background())
-	h.wg.Add(1)
-	go func() {
-		defer h.wg.Done()
+	h.wg.Go(func() {
 		<-h.startSignal // Wait for the signal to begin execution.
 		h.processor.Run(h.ctx)
-	}()
+	})
 }
 
 // Go unpauses the processor's main Run loop.

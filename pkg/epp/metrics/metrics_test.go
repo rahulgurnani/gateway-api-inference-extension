@@ -790,6 +790,7 @@ func TestFlowControlEnqueueDurationMetric(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			for i := range scenario.priorities {
 				RecordFlowControlRequestEnqueueDuration(
+					"default-fairness",
 					scenario.priorities[i],
 					scenario.outcomes[i],
 					scenario.durations[i],
@@ -936,10 +937,10 @@ func TestSchedulerAttemptsTotal(t *testing.T) {
 
 	t.Run("mixed success and failure attempts", func(t *testing.T) {
 		Reset()
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			RecordSchedulerAttempt(nil, "modelA", nil)
 		}
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			RecordSchedulerAttempt(errors.New("simulated scheduling failure"), "modelA", nil)
 		}
 		compareMetrics(t, "testdata/scheduler_attempts_total_metrics")
@@ -1067,8 +1068,8 @@ func TestFlowControlQueueDurationMetric(t *testing.T) {
 
 	const (
 		pool   = "pool-1"
-		model  = "llama-2"
-		target = "llama-base"
+		model  = "qwen-3"
+		target = "qwen-3-base"
 	)
 
 	records := []struct {
@@ -1157,8 +1158,8 @@ func TestFlowControlQueueSizeMetric(t *testing.T) {
 
 	const (
 		pool   = "pool-1"
-		model  = "llama-2"
-		target = "llama-base"
+		model  = "qwen-3"
+		target = "qwen-3-base"
 	)
 
 	// Basic Inc/Dec
@@ -1195,8 +1196,8 @@ func TestFlowControlQueueBytesMetric(t *testing.T) {
 
 	const (
 		pool   = "pool-1"
-		model  = "llama-2"
-		target = "llama-base"
+		model  = "qwen-3"
+		target = "qwen-3-base"
 	)
 
 	// Basic Inc/Dec

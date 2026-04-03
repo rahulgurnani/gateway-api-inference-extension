@@ -113,7 +113,7 @@ func getUserInputBytes(request *scheduling.LLMRequest) ([]byte, error) {
 		return json.Marshal(request.Body.ChatCompletions.Messages)
 
 	case request.Body.Completions != nil:
-		return []byte(request.Body.Completions.Prompt), nil
+		return []byte(request.Body.Completions.Prompt.PlainText()), nil
 
 	case request.Body.Embeddings != nil:
 		// Handle embeddings API - marshal input for cache key generation

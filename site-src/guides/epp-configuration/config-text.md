@@ -8,8 +8,9 @@ At this time the YAML file based configuration allows for:
 2. The set of scheduling profiles that define how requests are scheduled to pods.
 3. The configuration of the saturation detector.
 4. The configuration of the Flow Control system.
-5. The configuration of the data layer (experimental).
-6. A set of feature gates that are used to enable experimental features.
+5. The configuration of the data layer.
+6. The configuration of the payload parser (used to understand requests and responses).
+7. A set of feature gates that are used to enable experimental features.
 
 The YAML file can either be specified as a path to a file or in-line as a parameter.
 
@@ -32,6 +33,8 @@ saturationDetector:
 data:
   ...
 flowControl:
+  ...
+parser:
   ...
 featureGates:
   ...
@@ -57,6 +60,8 @@ fairness. This section is described in more detail in the section
 
 The `data` section configures the data layer, which is used to gather information (such as metrics) used in making scheduling
 decisions. This section is described in more detail in the section [Data Layer configuration](#data-layer-configuration).
+
+The `parser` section configures the parser, which is used to understand the payload of requests and responses for features like prefix-cache aware routing and usage tracking. This section is described in more detail in the section [Parser Configuration](#parser-configuration).
 
 A complete configuration might look like this:
 ```yaml
@@ -347,6 +352,8 @@ These plugins are used to interpret system load and protect endpoints from overl
 
 #### Utilization Detector Plugin
 
+**Local [README](../../../pkg/epp/framework/plugins/flowcontrol/saturationdetector/utilization/README.md) Link**
+
 This is the default saturation detector. It closed-loop reacts to telemetry emitted by individual model servers. It evaluates queue depth and KV cache utilization against user thresholds to score global saturation.
 
 - **Type**: `utilization-detector`
@@ -357,6 +364,8 @@ This is the default saturation detector. It closed-loop reacts to telemetry emit
   - `headroom` (`float64`): Allowed burst capacity above the ideal thresholds, expressed as a fraction (e.g., `0.2` for 20%). Must be >= 0.0. (Default: `0.0`)
 
 #### Concurrency Detector Plugin
+
+**Local [README](../../../pkg/epp/framework/plugins/flowcontrol/saturationdetector/concurrency/README.md) Link**
 
 Synchronous saturation detection mechanism based on active in-flight request accounting. Open-loop calculation of pool load with local endpoint limiting.
 
@@ -483,7 +492,7 @@ Both the `defaultPriorityBand` template and the entries in `priorityBands` use t
 
 The Data Layer collects metrics and other data used in scheduling decisions made by the various configured
 plugins. The exact data collected varies by the DataSource and Extractors configured. The baseline
-provided in GAIE collect Prometheus metrics from the Model Servers in the InferencePool.
+provided in GAIE collects Prometheus metrics from the Model Servers in the InferencePool.
 
 The Data Layer is configured via the `data` section of the overall configuration. It has the following form:
 
@@ -509,6 +518,166 @@ list has the following field:
 **Note**: The names of the plugin instances mentioned above, refer to plugin instances defined in the plugins section
 of the configuration.
 
+<<<<<<< HEAD
+### Minimal configuration (core vLLM metrics)
+
+The built-in `metrics-data-source` and `core-metrics-extractor` plugins collect the five vLLM Model
+Server Protocol metrics out of the box - no `parameters` are required:
+=======
+## Parser Configuration
+
+The `parser` section configures the parser to understand the request and response payloads. This is crucial for enabling advanced capabilities such as prefix-cache aware routing, request/response usage tracking, and other payload-specific processing. By default, if no parser is specified, the `openai-parser` is used, which supports the [OpenAI API](https://developers.openai.com/api/reference/overview).
+
+Here is an example configuration that uses the `vllmgrpc-parser`:
+>>>>>>> 5943afb7 (add parser doc)
+
+```yaml
+apiVersion: inference.networking.x-k8s.io/v1alpha1
+kind: EndpointPickerConfig
+plugins:
+<<<<<<< HEAD
+  - type: metrics-data-source
+  - type: core-metrics-extractor
+
+data:
+  sources:
+    - pluginRef: metrics-data-source
+      extractors:
+        - pluginRef: core-metrics-extractor
+
+schedulingProfiles:
+  ...
+  ...
+```
+
+Default metric specs collected for vLLM:
+
+| Field | Default spec |
+|---|---|
+| Queued requests | `vllm:num_requests_waiting` |
+| Running requests | `vllm:num_requests_running` |
+| KV-cache utilization | `vllm:kv_cache_usage_perc` |
+| LoRA adapter info | `vllm:lora_requests_info` |
+| Cache block config | `vllm:cache_config_info` |
+
+SGLang defaults are also built in and selected automatically when a Pod carries the
+`inference.networking.k8s.io/engine-type: sglang` label. The label value or default engine
+can be set by via the [extractor configuration](#core-metrics-extractor-parameters-reference).
+
+### Disabling a specific metric
+
+Set the corresponding spec field to an empty string inside an `engineConfigs` entry.
+
+**Important: `engineConfigs` is full-replacement per engine name.**
+Providing any entry with `name: "vllm"` replaces the _entire_ built-in vllm
+configuration — the built-in defaults for that engine are not merged in.
+You must restate every spec field you still want to collect.
+
+#### Example: disable LoRA collection for vLLM
+
+```yaml
+plugins:
+  - name: core-metrics-extractor
+    type: core-metrics-extractor
+    parameters:
+      engineConfigs:
+        - name: vllm
+          queuedRequestsSpec:  "vllm:num_requests_waiting"
+          runningRequestsSpec: "vllm:num_requests_running"
+          kvUsageSpec:         "vllm:kv_cache_usage_perc"
+          loraSpec:            ""    # empty string disables LoRA extraction
+          cacheInfoSpec:       "vllm:cache_config_info"
+```
+
+When `loraSpec` is empty, no extraction is attempted. Empty strings produce nil metric
+specifications, so you must restate every field you want to keep and not just those being
+changed. At startup the factory logs a `"Not scraping metric"` line for each disabled
+spec so operators can confirm which metrics are intentionally skipped.
+
+
+### `data.sources: []` - empty source list
+
+An explicit `sources: []` (non-nil but empty) is valid and silently disables all metric collection.
+A warning is logged at startup.
+
+This is distinct from `data: null` (or omitting the section entirely), which is an error when the
+datalayer is enabled.
+
+| `data` value | Behavior |
+|---|---|
+| omitted / `null`, datalayer **enabled** (`dataLayer` feature gate) | startup error: _"You must specify the Data section"_ |
+| omitted / `null`, datalayer **disabled** (default) | no error, no collection |
+| `sources: []` (empty list) | warning logged, no collection |
+| `sources` references unknown plugin name | startup error |
+
+### `core-metrics-extractor` parameters reference
+
+All fields are optional and fall back to the built-in vLLM / SGLang defaults.
+
+```yaml
+parameters:
+  # Pod label used to select which engineConfig to apply.
+  # Default: "inference.networking.k8s.io/engine-type"
+  engineLabelKey: "inference.networking.k8s.io/engine-type"
+
+  # Engine to use for Pods without the engineLabelKey label.
+  # Must match a name in engineConfigs. Default: "vllm"
+  defaultEngine: "vllm"
+
+  # Per-engine metric specifications.
+  # Providing an entry for a name blocks the built-in default for that name.
+  # Built-in names: "vllm", "sglang". All others are additive.
+  engineConfigs:
+    - name: vllm
+      queuedRequestsSpec:  "vllm:num_requests_waiting"
+      runningRequestsSpec: "vllm:num_requests_running"
+      kvUsageSpec:         "vllm:kv_cache_usage_perc"
+      loraSpec:            "vllm:lora_requests_info"   # "" to disable
+      cacheInfoSpec:       "vllm:cache_config_info"    # "" to disable
+    - name: sglang
+      queuedRequestsSpec:  "sglang:num_queue_reqs"
+      runningRequestsSpec: "sglang:num_running_reqs"
+      kvUsageSpec:         "sglang:token_usage"
+      loraSpec:            ""   # SGLang has no LoRA metric by default
+      cacheInfoSpec:       ""
+```
+
+Spec strings use PromQL Instant Vector Selector syntax: `family_name{label=value}`.
+Both quoted and unquoted label values are accepted.
+
+### `metrics-data-source` parameters reference
+
+```yaml
+parameters:
+  scheme: "http"    # or "https". Default: "http"
+  path: "/metrics"  # Default: "/metrics"
+  insecureSkipVerify: true  # Default: true
+```
+
+### Error handling
+
+When a metric family is not found in the scraped data, the extractor appends a
+"metric family not found" error to the poll result. The datalayer collector logs this error
+**once** on first occurrence and once when it resolves — repeated identical errors are suppressed.
+This prevents log flooding for persistent conditions such as a missing LoRA metric family on a
+deployment that doesn't load LoRA adapters.
+
+To eliminate the error entirely, disable the spec with an empty string as shown above.
+
+=======
+- name: maxScore
+  type: max-score-picker
+- name: vllmgrpcParser
+  type: vllmgrpc-parser
+schedulingProfiles:
+- name: default
+  plugins:
+  - pluginRef: maxScore
+parser:
+  pluginRef: vllmgrpcParser
+```
+
+>>>>>>> 5943afb7 (add parser doc)
 ## Feature Gates
 
 The Feature Gates section allows for the enabling of experimental features of the IGW. These experimental

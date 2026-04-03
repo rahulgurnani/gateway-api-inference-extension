@@ -68,7 +68,8 @@ type ShardProcessor struct {
 	poolName             string
 	shard                contracts.RegistryShard
 	saturationDetector   flowcontrol.SaturationDetector
-	podLocator           contracts.PodLocator
+	endpointCandidates   contracts.EndpointCandidates
+	usageLimitPolicy     flowcontrol.UsageLimitPolicy
 	clock                clock.WithTicker
 	cleanupSweepInterval time.Duration
 	logger               logr.Logger
@@ -91,7 +92,8 @@ func NewShardProcessor(
 	poolName string,
 	shard contracts.RegistryShard,
 	saturationDetector flowcontrol.SaturationDetector,
-	podLocator contracts.PodLocator,
+	endpointCandidates contracts.EndpointCandidates,
+	usageLimitPolicy flowcontrol.UsageLimitPolicy,
 	clock clock.WithTicker,
 	cleanupSweepInterval time.Duration,
 	enqueueChannelBufferSize int,
@@ -101,7 +103,8 @@ func NewShardProcessor(
 		shard:                shard,
 		poolName:             poolName,
 		saturationDetector:   saturationDetector,
-		podLocator:           podLocator,
+		endpointCandidates:   endpointCandidates,
+		usageLimitPolicy:     usageLimitPolicy,
 		clock:                clock,
 		cleanupSweepInterval: cleanupSweepInterval,
 		logger:               logger,
@@ -226,7 +229,7 @@ func (sp *ShardProcessor) enqueue(item *FlowItem) {
 		if fs := item.FinalState(); fs != nil {
 			outcomeStr = fs.Outcome.String()
 		}
-		metrics.RecordFlowControlRequestEnqueueDuration(priorityStr, outcomeStr, time.Since(startTime))
+		metrics.RecordFlowControlRequestEnqueueDuration(key.ID, priorityStr, outcomeStr, time.Since(startTime))
 	}()
 
 	// --- Optimistic External Finalization Check ---
@@ -314,21 +317,27 @@ func (sp *ShardProcessor) dispatchCycle(ctx context.Context) bool {
 		metrics.RecordFlowControlDispatchCycleDuration(time.Since(dispatchCycleStart))
 	}()
 
-	pool := sp.podLocator.Locate(ctx, nil)
+	pool := sp.endpointCandidates.Locate(ctx, nil)
 	saturation := sp.saturationDetector.Saturation(ctx, pool)
 
 	// Record pool saturation metric
 	metrics.RecordFlowControlPoolSaturation(sp.poolName, saturation)
 
-	// --- Viability Check (Pool-Wide Saturation) ---
-	if saturation >= 1.0 {
-		sp.logger.V(logutil.DEBUG).Info("Pool is saturated; enforcing HoL blocking.",
-			"poolName", sp.poolName)
-		// Short-circuit
-		return false
-	}
+	priorities := sp.shard.AllOrderedPriorityLevels()
+	ceilings := sp.usageLimitPolicy.ComputeLimit(ctx, saturation, priorities)
 
-	for _, priority := range sp.shard.AllOrderedPriorityLevels() {
+	for i, priority := range priorities {
+		// --- Viability Check (Saturation/HoL Blocking) ---
+		// Check before selecting an item: if we are already saturated for this priority, stop immediately.
+		usageLimit := ceilings[i]
+		if saturation >= usageLimit {
+			sp.logger.V(logutil.DEBUG).Info("Priority band is saturated; enforcing HoL blocking.",
+				"priority", priority, "usageLimit", usageLimit)
+			// Stop the dispatch cycle entirely to respect strict policy decision and prevent priority inversion where
+			// lower-priority work might exacerbate the saturation affecting high-priority work.
+			return false
+		}
+
 		originalBand, err := sp.shard.PriorityBandAccessor(priority)
 		if err != nil {
 			sp.logger.Error(err, "Failed to get PriorityBandAccessor, skipping band", "priority", priority)
@@ -345,9 +354,8 @@ func (sp *ShardProcessor) dispatchCycle(ctx context.Context) bool {
 			continue
 		}
 
-		req := item.OriginalRequest()
-
 		// --- Dispatch ---
+		req := item.OriginalRequest()
 		if err := sp.dispatchItem(item); err != nil {
 			sp.logger.Error(err, "Failed to dispatch item, skipping priority band for this cycle",
 				"flowKey", req.FlowKey(), "reqID", req.ID())
@@ -527,9 +535,7 @@ func (sp *ShardProcessor) processAllQueuesConcurrently(
 
 	var wg sync.WaitGroup
 	for range numWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for q := range tasks {
 				key := q.FlowKey()
 				queueLogger := logger.WithValues(
@@ -543,7 +549,7 @@ func (sp *ShardProcessor) processAllQueuesConcurrently(
 				}
 				processFn(managedQ, queueLogger)
 			}
-		}()
+		})
 	}
 
 	// Feed the channel with all the queues to be processed.

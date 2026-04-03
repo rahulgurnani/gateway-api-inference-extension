@@ -1,5 +1,4 @@
 //go:build ignore
-// +build ignore
 
 /*
 Copyright 2026 The Kubernetes Authors.
@@ -72,6 +71,9 @@ var currentCodeExceptionMap = map[string][]string{
 		"sidecars/latencypredictorasync",
 	},
 	"pkg/epp/framework/plugins/scheduling/scorer/predictedlatency/prediction.go": {
+		"sidecars/latencypredictorasync",
+	},
+	"pkg/epp/framework/plugins/scheduling/scorer/predictedlatency/prediction_test.go": {
 		"sidecars/latencypredictorasync",
 	},
 	"pkg/epp/framework/plugins/scheduling/scorer/predictedlatency/requestcontrol_hooks.go": {

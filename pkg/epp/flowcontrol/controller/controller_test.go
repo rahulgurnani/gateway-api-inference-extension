@@ -36,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/clock"
 	testclock "k8s.io/utils/clock/testing"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/usagelimits"
 
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/flowcontrol/contracts"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/flowcontrol/contracts/mocks"
@@ -125,11 +126,13 @@ func newUnitHarness(
 	}
 
 	mockDetector := &mockSaturationDetector{}
-	mockPodLocator := &mocks.MockPodLocator{}
+	mockEndpointCandidates := &mocks.MockEndpointCandidates{}
 
 	mockProcessorFactory := &mockShardProcessorFactory{
 		processors: make(map[string]*mockShardProcessor),
 	}
+
+	usageLimitPolicy := usagelimits.DefaultPolicy()
 
 	// Default the registry if nil, simplifying tests that don't focus on registry interaction.
 	if registry == nil {
@@ -141,7 +144,7 @@ func newUnitHarness(
 		withClock(harnessOpts.clock),
 		withShardProcessorFactory(mockProcessorFactory.new),
 	}
-	fc, err := NewFlowController(ctx, "test-pool", cfg, registry, mockDetector, mockPodLocator, fcOpts...)
+	fc, err := NewFlowController(ctx, "test-pool", cfg, registry, mockDetector, mockEndpointCandidates, usageLimitPolicy, fcOpts...)
 	require.NoError(t, err, "failed to create FlowController for unit test harness")
 
 	h := &testHarness{
@@ -164,7 +167,8 @@ func newUnitHarness(
 func newIntegrationHarness(t *testing.T, ctx context.Context, cfg *Config, registry *mockRegistryClient) *testHarness {
 	t.Helper()
 	mockDetector := &mockSaturationDetector{}
-	mockPodLocator := &mocks.MockPodLocator{}
+	mockEndpointCandidates := &mocks.MockEndpointCandidates{}
+	usageLimitPolicy := usagelimits.DefaultPolicy()
 
 	// Align FakeClock with system time. See explanation in newUnitHarness.
 	mockClock := testclock.NewFakeClock(time.Now())
@@ -176,7 +180,7 @@ func newIntegrationHarness(t *testing.T, ctx context.Context, cfg *Config, regis
 		withRegistryClient(registry),
 		withClock(mockClock),
 	}
-	fc, err := NewFlowController(ctx, "test-pool", cfg, registry, mockDetector, mockPodLocator, opts...)
+	fc, err := NewFlowController(ctx, "test-pool", cfg, registry, mockDetector, mockEndpointCandidates, usageLimitPolicy, opts...)
 	require.NoError(t, err, "failed to create FlowController for integration test harness")
 
 	h := &testHarness{
@@ -286,7 +290,8 @@ func (f *mockShardProcessorFactory) new(
 	_ context.Context, // The factory does not use the lifecycle context; it's passed to the processor's Run method later.
 	shard contracts.RegistryShard,
 	_ flowcontrol.SaturationDetector,
-	_ contracts.PodLocator,
+	_ contracts.EndpointCandidates,
+	_ flowcontrol.UsageLimitPolicy,
 	_ clock.WithTicker,
 	_ time.Duration,
 	_ int,
@@ -1150,7 +1155,8 @@ func TestFlowController_WorkerManagement(t *testing.T) {
 			ctx context.Context, // The context created by getOrStartWorker for the potential new processor.
 			shard contracts.RegistryShard,
 			_ flowcontrol.SaturationDetector,
-			_ contracts.PodLocator,
+			_ contracts.EndpointCandidates,
+			_ flowcontrol.UsageLimitPolicy,
 			_ clock.WithTicker,
 			_ time.Duration,
 			_ int,

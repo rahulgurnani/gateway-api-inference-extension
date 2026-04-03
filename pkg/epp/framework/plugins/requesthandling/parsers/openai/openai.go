@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
@@ -90,7 +91,7 @@ func (p *OpenAIParser) WithName(name string) *OpenAIParser {
 func (p *OpenAIParser) ParseRequest(ctx context.Context, body []byte, headers map[string]string) (*scheduling.LLMRequestBody, error) {
 	bodyMap := make(map[string]any)
 	if err := json.Unmarshal(body, &bodyMap); err != nil {
-		return nil, errors.New("error unmarshaling request bodyMap")
+		return nil, fmt.Errorf("error unmarshaling request bodyMap: %w", err)
 	}
 	extractedBody, err := extractRequestBody(body, headers)
 	if err != nil {
@@ -213,7 +214,7 @@ func extractRequestBody(rawBody []byte, headers map[string]string) (*scheduling.
 
 	case completionsAPI:
 		var completions scheduling.CompletionsRequest
-		if err := json.Unmarshal(rawBody, &completions); err == nil && completions.Prompt != "" {
+		if err := json.Unmarshal(rawBody, &completions); err == nil && !completions.Prompt.IsEmpty() {
 			return &scheduling.LLMRequestBody{Completions: &completions}, nil
 		}
 		return nil, errors.New("invalid completions request: must have prompt field")

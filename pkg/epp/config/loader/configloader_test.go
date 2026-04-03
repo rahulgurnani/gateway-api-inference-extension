@@ -42,6 +42,7 @@ import (
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/fairness"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/ordering"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/usagelimits"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/openai"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/picker"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/profile"
@@ -532,6 +533,21 @@ func TestInstantiateAndConfigure(t *testing.T) {
 	}
 }
 
+// TestBuildDataLayerConfigEmptySourcesWarning verifies that an empty sources list
+// logs a warning but does not return an error.
+func TestBuildDataLayerConfigEmptySourcesWarning(t *testing.T) {
+	t.Parallel()
+	handle := utils.NewTestHandle(context.Background())
+	cfg, err := buildDataLayerConfig(
+		&configapi.DataLayerConfig{Sources: []configapi.DataLayerSource{}},
+		true, // dataLayerEnabled
+		handle,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Empty(t, cfg.Sources)
+}
+
 // --- Helpers & Mocks ---
 
 func hasPluginType(handle fwkplugin.Handle, typeName string) bool {
@@ -697,6 +713,7 @@ func registerTestPlugins(t *testing.T) {
 	fwkplugin.Register(picker.MaxScorePickerType, picker.MaxScorePickerFactory)
 	fwkplugin.Register(profile.SingleProfileHandlerType, profile.SingleProfileHandlerFactory)
 	fwkplugin.Register(openai.OpenAIParserType, openai.OpenAIParserPluginFactory)
+	fwkplugin.Register(usagelimits.StaticUsageLimitPolicyType, usagelimits.StaticPolicyFactory)
 }
 
 func TestValidateSaturationDetector(t *testing.T) {

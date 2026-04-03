@@ -52,14 +52,30 @@ func TestBodyBasedRouting(t *testing.T) {
 	}{
 		{
 			name:         "success: extracts model and sets header",
-			req:          integration.ReqLLMUnary(logger, "test", "llama"),
-			wantResponse: ExpectBBRUnaryResponse("llama", "llama", "test"),
+			req:          integration.ReqLLMUnary(logger, "test", "qwen"),
+			wantResponse: ExpectBBRUnaryResponse("qwen", "qwen", "test"),
 		},
 		{
-			name:             "immediate response: no model parameter in body",
-			req:              integration.ReqLLMUnary(logger, "test1", ""),
-			wantStatusCode:   envoyTypePb.StatusCode_BadRequest,
-			wantBodyContains: "model",
+			name: "no model parameter in body - skips gracefully",
+			req:  integration.ReqLLMUnary(logger, "test1", ""),
+			wantResponse: &extProcPb.ProcessingResponse{
+				Response: &extProcPb.ProcessingResponse_RequestBody{
+					RequestBody: &extProcPb.BodyResponse{
+						Response: &extProcPb.CommonResponse{
+							ClearRouteCache: true,
+							HeaderMutation: &extProcPb.HeaderMutation{
+								SetHeaders: []*envoyCorev3.HeaderValueOption{
+									{
+										Header: &envoyCorev3.HeaderValue{
+											Key: "X-Gateway-Base-Model-Name",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 
@@ -139,12 +155,12 @@ func TestResponsePlugins(t *testing.T) {
 				return NewBBRHarness(t, ctx, false)
 			},
 			reqs: []*extProcPb.ProcessingRequest{
-				integration.ReqLLMUnary(logger, "test", "llama"),
+				integration.ReqLLMUnary(logger, "test", "qwen"),
 				respHeaders,
 				respBodyReq(map[string]any{"choices": []any{map[string]any{"text": "Hi there!"}}}),
 			},
 			wantResponses: []*extProcPb.ProcessingResponse{
-				ExpectBBRUnaryResponse("llama", "llama", "test"),
+				ExpectBBRUnaryResponse("qwen", "qwen", "test"),
 				ExpectResponseHeadersPassThrough(),
 				ExpectResponseBodyPassThrough(),
 			},
@@ -214,7 +230,7 @@ func TestFullDuplexStreamed_BodyBasedRouting(t *testing.T) {
 			name: "success: adds model header from simple body",
 			reqs: integration.ReqLLM(logger, "test", "foo", "bar"),
 			wantResponses: []*extProcPb.ProcessingResponse{
-				ExpectBBRHeader("foo", "llama", "64"),
+				ExpectBBRHeader("foo", "qwen", "64"),
 				ExpectBBRBodyPassThrough("test", "foo"),
 			},
 		},
@@ -226,15 +242,40 @@ func TestFullDuplexStreamed_BodyBasedRouting(t *testing.T) {
 				`ra-sheddable","prompt":"test","temperature":0}`,
 			),
 			wantResponses: []*extProcPb.ProcessingResponse{
-				ExpectBBRHeader("sql-lora-sheddable", "llama", "79"),
+				ExpectBBRHeader("sql-lora-sheddable", "qwen", "79"),
 				ExpectBBRBodyPassThrough("test", "sql-lora-sheddable"),
 			},
 		},
 		{
-			name:             "immediate response: handles missing model field",
-			reqs:             integration.ReqLLM(logger, "test", "", ""),
-			wantStatusCode:   envoyTypePb.StatusCode_BadRequest,
-			wantBodyContains: "model",
+			name: "missing model field - skips gracefully",
+			reqs: integration.ReqLLM(logger, "test", "", ""),
+			wantResponses: []*extProcPb.ProcessingResponse{
+				{
+					Response: &extProcPb.ProcessingResponse_RequestHeaders{
+						RequestHeaders: &extProcPb.HeadersResponse{
+							Response: &extProcPb.CommonResponse{
+								ClearRouteCache: true,
+								HeaderMutation: &extProcPb.HeaderMutation{
+									SetHeaders: []*envoyCorev3.HeaderValueOption{
+										{
+											Header: &envoyCorev3.HeaderValue{
+												Key:      "Content-Length",
+												RawValue: []byte("50"),
+											},
+										},
+										{
+											Header: &envoyCorev3.HeaderValue{
+												Key: "X-Gateway-Base-Model-Name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				ExpectBBRBodyPassThrough("test", ""),
+			},
 		},
 	}
 

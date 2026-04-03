@@ -86,7 +86,8 @@ func TestVllmGRPCParser_PluginLifecycle(t *testing.T) {
 func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 	tests := []struct {
 		name          string
-		reqMsg        *pb.GenerateRequest
+		reqMsg        proto.Message
+		headers       map[string]string
 		malformedData []byte
 		wantErr       bool
 		want          *scheduling.LLMRequestBody
@@ -98,18 +99,21 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 					Text: "Hello world",
 				},
 			},
+			headers: map[string]string{":path": "/vllm.grpc.engine.VllmEngine/Generate"},
 			want: &scheduling.LLMRequestBody{
 				Completions: &scheduling.CompletionsRequest{
-					Prompt: "Hello world",
+					Prompt: scheduling.Prompt{Raw: "Hello world"},
 				},
 				Payload: scheduling.PayloadProto{
 					Message: &pb.GenerateRequest{
 						Input: &pb.GenerateRequest_Text{
 							Text: "Hello world",
 						},
-					}},
+					},
+				},
 			},
 		},
+
 		{
 			name: "Valid Tokenized Request",
 			reqMsg: &pb.GenerateRequest{
@@ -119,9 +123,10 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 					},
 				},
 			},
+			headers: map[string]string{":path": "/vllm.grpc.engine.VllmEngine/Generate"},
 			want: &scheduling.LLMRequestBody{
 				Completions: &scheduling.CompletionsRequest{
-					Prompt: "Tokenized hello",
+					Prompt: scheduling.Prompt{Raw: "Tokenized hello"},
 				},
 				Payload: scheduling.PayloadProto{
 					Message: &pb.GenerateRequest{
@@ -133,6 +138,7 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 					}},
 			},
 		},
+
 		{
 			name:          "Malformed gRPC payload (too short)",
 			malformedData: []byte{0, 0, 0},
@@ -156,9 +162,11 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 				},
 				Stream: true,
 			},
+			headers: map[string]string{":path": "/vllm.grpc.engine.VllmEngine/Generate"},
 			want: &scheduling.LLMRequestBody{
+				Stream: true,
 				Completions: &scheduling.CompletionsRequest{
-					Prompt: "Hello world",
+					Prompt: scheduling.Prompt{Raw: "Hello world"},
 				},
 				Payload: scheduling.PayloadProto{
 					Message: &pb.GenerateRequest{
@@ -167,7 +175,27 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 						},
 						Stream: true,
 					}},
-				Stream: true,
+			},
+		},
+		{
+			name: "Valid Embed Request",
+			reqMsg: &pb.EmbedRequest{
+				Tokenized: &pb.TokenizedInput{
+					OriginalText: "Embed this",
+				},
+			},
+			headers: map[string]string{":path": "/vllm.grpc.engine.VllmEngine/Embed"},
+			want: &scheduling.LLMRequestBody{
+				Embeddings: &scheduling.EmbeddingsRequest{
+					Input: "Embed this",
+				},
+				Payload: scheduling.PayloadProto{
+					Message: &pb.EmbedRequest{
+						Tokenized: &pb.TokenizedInput{
+							OriginalText: "Embed this",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -184,7 +212,7 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 				payload = createGrpcPayload(t, tt.reqMsg)
 			}
 
-			got, err := parser.ParseRequest(ctx, payload, nil)
+			got, err := parser.ParseRequest(ctx, payload, tt.headers)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ParseRequest() error = %v, wantErr %v", err, tt.wantErr)
@@ -204,7 +232,7 @@ func TestVllmGRPCParser_ParseRequest(t *testing.T) {
 func TestVllmGRPCParser_ParseResponse(t *testing.T) {
 	tests := []struct {
 		name    string
-		respMsg *pb.GenerateResponse
+		respMsg proto.Message
 		wantErr bool
 		want    *fwkrh.ParsedResponse
 	}{
@@ -231,6 +259,7 @@ func TestVllmGRPCParser_ParseResponse(t *testing.T) {
 				},
 			},
 		},
+
 		{
 			name: "Valid Complete Response",
 			respMsg: &pb.GenerateResponse{
@@ -273,16 +302,65 @@ func TestVllmGRPCParser_ParseResponse(t *testing.T) {
 			respMsg: &pb.GenerateResponse{},
 			wantErr: true,
 		},
+		{
+			name: "Valid Embed Response",
+			respMsg: &pb.EmbedResponse{
+				PromptTokens: 10,
+				Embedding:    []float32{1.0, 2.0},
+				EmbeddingDim: 2,
+			},
+			want: &fwkrh.ParsedResponse{
+				Usage: &fwkrc.Usage{
+					PromptTokens:     10,
+					CompletionTokens: 0,
+					TotalTokens:      10,
+				},
+			},
+		},
+		{
+			name: "Valid Embed Response with Context",
+			respMsg: &pb.EmbedResponse{
+				PromptTokens: 10,
+				Embedding:    []float32{1.0, 2.0},
+				EmbeddingDim: 2,
+			},
+			want: &fwkrh.ParsedResponse{
+				Usage: &fwkrc.Usage{
+					PromptTokens:     10,
+					CompletionTokens: 0,
+					TotalTokens:      10,
+				},
+			},
+		},
+		{
+			name: "Valid Generate Response with Context",
+			respMsg: &pb.GenerateResponse{
+				Response: &pb.GenerateResponse_Complete{
+					Complete: &pb.GenerateComplete{
+						PromptTokens:     20,
+						CompletionTokens: 15,
+					},
+				},
+			},
+			want: &fwkrh.ParsedResponse{
+				Usage: &fwkrc.Usage{
+					PromptTokens:     20,
+					CompletionTokens: 15,
+					TotalTokens:      35,
+					PromptTokenDetails: &fwkrc.PromptTokenDetails{
+						CachedTokens: 0,
+					},
+				},
+			},
+		},
 	}
 
 	parser := NewVllmGRPCParser()
-	ctx := context.Background()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			payload := createGrpcPayload(t, tt.respMsg)
-
-			got, err := parser.ParseResponse(ctx, payload, nil, false)
+			got, err := parser.ParseResponse(context.Background(), payload, nil, false)
 
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("ParseResponse() error = %v, wantErr %v", err, tt.wantErr)

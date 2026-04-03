@@ -17,6 +17,7 @@ limitations under the License.
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -219,7 +220,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 				reqCtx.Request.Headers[reqcommon.RequestIdHeaderKey] = requestID // update in headers so director can consume it
 			}
 			logger = logger.WithValues(reqcommon.RequestIdHeaderKey, requestID)
-			logger.V(1).Info("EPP received request") // Request ID will be logged too as part of logger context values.
+			logger.V(logutil.DEFAULT).Info("EPP received request") // Request ID will be logged too as part of logger context values.
 			loggerTrace = logger.V(logutil.TRACE)
 			ctx = log.IntoContext(ctx, logger)
 
@@ -240,7 +241,7 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 
 				reqCtx, err = s.director.HandleRequest(ctx, reqCtx)
 				if err != nil {
-					logger.V(1).Error(err, "Error handling request")
+					logger.Error(err, "Error handling request")
 					break
 				}
 
@@ -280,6 +281,8 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 					reqCtx.ResponseCompleteTimestamp = time.Now()
 				}
 				s.HandleResponseBody(ctx, reqCtx, chunk, endOfStream)
+				// Rewrite the model name in response body back to the original client-facing name.
+				chunk = rewriteModelName(chunk, reqCtx.TargetModelName, reqCtx.IncomingModelName)
 				// For streaming response, we send response chunk back to envoy every time we received it.
 				reqCtx.respBodyResp = generateResponseBodyResponses(chunk, endOfStream, reqCtx.Response.DynamicMetadata)
 			} else {
@@ -305,14 +308,14 @@ func (s *StreamingServer) Process(srv extProcPb.ExternalProcessor_ProcessServer)
 			if logger.V(logutil.DEBUG).Enabled() {
 				logger.V(logutil.DEBUG).Error(err, "Failed to process request", "request", req)
 			} else {
-				logger.V(1).Error(err, "Failed to process request")
+				logger.Error(err, "Failed to process request")
 			}
 			resp, err := errcommon.BuildErrResponse(err)
 			if err != nil {
 				return err
 			}
 			if err := srv.Send(resp); err != nil {
-				logger.V(1).Error(err, "Send failed")
+				logger.Error(err, "Send failed")
 				return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 			}
 			return nil
@@ -337,12 +340,34 @@ func (s *StreamingServer) finishResponse(ctx context.Context, reqCtx *RequestCon
 	reqCtx.ResponseCompleteTimestamp = time.Now()
 	reqCtx = s.HandleResponseBody(ctx, reqCtx, body, true)
 	if !modelStreaming {
+		// Rewrite the model name in response body back to the original client-facing name.
+		body = rewriteModelName(body, reqCtx.TargetModelName, reqCtx.IncomingModelName)
 		// For non-streaming response, we send response back to envoy after receiving all the response body.
 		reqCtx.respBodyResp = generateResponseBodyResponses(body, setEos, reqCtx.Response.DynamicMetadata)
 	}
 }
 
-// updateStateAndSendIfNeeded checks state and can send mutiple responses in a single pass, but only if ordered properly.
+// rewriteModelName replaces occurrences of the target (internal) model name with the
+// incoming (client-facing) model name in the response body bytes. This ensures clients
+// see the model name they originally requested, not the internal backend model name.
+// It is a no-op when the names are identical or either is empty.
+func rewriteModelName(body []byte, targetModel, incomingModel string) []byte {
+	if targetModel == "" || incomingModel == "" || targetModel == incomingModel {
+		return body
+	}
+	old := []byte(`"model":"` + targetModel + `"`)
+	new := []byte(`"model":"` + incomingModel + `"`)
+	result := bytes.ReplaceAll(body, old, new)
+	if !bytes.Equal(result, body) {
+		return result
+	}
+	// Also handle the case where JSON has spaces after the colon: "model": "..."
+	old = []byte(`"model": "` + targetModel + `"`)
+	new = []byte(`"model": "` + incomingModel + `"`)
+	return bytes.ReplaceAll(body, old, new)
+}
+
+// updateStateAndSendIfNeeded checks state and can send multiple responses in a single pass, but only if ordered properly.
 // Order of requests matter in FULL_DUPLEX_STREAMING. For both request and response, the order of response sent back MUST be: Header->Body->Trailer, with trailer being optional.
 func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProcessor_ProcessServer, logger logr.Logger) error {
 	loggerTrace := logger.V(logutil.TRACE)
@@ -350,7 +375,7 @@ func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProces
 	if r.RequestState == RequestReceived && r.reqHeaderResp != nil {
 		loggerTrace.Info("Sending request header response", "obj", r.reqHeaderResp)
 		if err := srv.Send(r.reqHeaderResp); err != nil {
-			logger.V(1).Error(err, "error sending response")
+			logger.Error(err, "error sending response")
 			return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 		}
 		r.RequestState = HeaderRequestResponseComplete
@@ -363,7 +388,7 @@ func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProces
 				return status.Errorf(codes.Unknown, "failed to send response back to Envoy: %v", err)
 			}
 		}
-		logger.V(1).Info("EPP sent request body response(s) to proxy", "modelName", r.IncomingModelName, "targetModelName", r.TargetModelName)
+		logger.V(logutil.DEFAULT).Info("EPP sent request body response(s) to proxy", "modelName", r.IncomingModelName, "targetModelName", r.TargetModelName)
 		r.RequestState = BodyRequestResponsesComplete
 		metrics.IncRunningRequests(r.IncomingModelName)
 		r.RequestRunning = true
@@ -391,7 +416,7 @@ func (r *RequestContext) updateStateAndSendIfNeeded(srv extProcPb.ExternalProces
 			}
 		}
 		if r.ResponseComplete {
-			logger.V(1).Info("EPP sent response body back to proxy")
+			logger.V(logutil.DEFAULT).Info("EPP sent response body back to proxy")
 			r.RequestState = BodyResponseResponsesComplete
 		}
 		// Dump the response so a new stream message can begin

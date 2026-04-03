@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/bbr/framework"
 )
 
-const testModelValue = "llama-3"
+const testModelValue = "qwen3"
 
 func TestNewBodyFieldToHeaderPlugin(t *testing.T) {
 	tests := []struct {
@@ -228,7 +228,7 @@ func TestBodyFieldToHeaderPlugin_ProcessRequest(t *testing.T) {
 			wantHeader: "true",
 		},
 		{
-			name:       "field not found",
+			name:       "field not found - skips gracefully",
 			fieldName:  "missing",
 			headerName: "X-Gateway-Missing",
 			request: func() *framework.InferenceRequest {
@@ -236,10 +236,9 @@ func TestBodyFieldToHeaderPlugin_ProcessRequest(t *testing.T) {
 				r.Body["other"] = "value"
 				return r
 			}(),
-			wantErr: true,
 		},
 		{
-			name:       "field is empty string",
+			name:       "field is empty string - skips gracefully",
 			fieldName:  "model",
 			headerName: "X-Gateway-Model",
 			request: func() *framework.InferenceRequest {
@@ -247,7 +246,6 @@ func TestBodyFieldToHeaderPlugin_ProcessRequest(t *testing.T) {
 				r.Body["model"] = ""
 				return r
 			}(),
-			wantErr: true,
 		},
 		{
 			name:       "nil field value",
@@ -273,7 +271,7 @@ func TestBodyFieldToHeaderPlugin_ProcessRequest(t *testing.T) {
 			request: &framework.InferenceRequest{
 				InferenceMessage: framework.InferenceMessage{
 					Headers: nil,
-					Body:    map[string]any{"model": "llama"},
+					Body:    map[string]any{"model": "qwen"},
 				},
 			},
 		},
