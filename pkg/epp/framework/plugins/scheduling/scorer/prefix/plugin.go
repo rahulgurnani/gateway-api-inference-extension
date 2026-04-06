@@ -83,7 +83,7 @@ func (p *Plugin) WithName(name string) *Plugin {
 
 // Produces returns the data produced by the plugin.
 func (p *Plugin) Produces() map[string]any {
-	return map[string]any{attrprefix.PrefixCacheMatchInfoKey: attrprefix.PrefixCacheMatchInfo{}}
+	return map[string]any{}
 }
 
 // Consumes returns the data consumed by the plugin.
