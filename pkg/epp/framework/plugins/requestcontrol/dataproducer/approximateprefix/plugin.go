@@ -160,6 +160,8 @@ func (p *prepareData) PrepareRequestData(ctx context.Context, request *framework
 // PreRequest records in the shared indexer the result of the scheduling selection.
 // It updates the indexer with the prefix hashes for the selected endpoint(s).
 func (p *prepareData) PreRequest(ctx context.Context, request *framework.LLMRequest, schedulingResult *framework.SchedulingResult) {
+	// Delete the state to avoid memory leak.
+	defer p.pluginState.Delete(request.RequestId)
 	primaryProfileResult := schedulingResult.ProfileResults[schedulingResult.PrimaryProfileName]
 	if len(primaryProfileResult.TargetEndpoints) == 0 {
 		return
@@ -175,7 +177,6 @@ func (p *prepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 
 	// Read state saved during PrepareRequestData.
 	state, err := plugin.ReadPluginStateKey[*SchedulingContextState](p.pluginState, request.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
-	p.pluginState.Delete(request.RequestId)
 	if err != nil {
 		log.FromContext(ctx).Error(err, "failed to read prefix plugin state", "requestID", request.RequestId)
 		return
