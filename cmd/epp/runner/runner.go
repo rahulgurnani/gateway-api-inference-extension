@@ -67,15 +67,20 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/saturationdetector/utilization"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/flowcontrol/usagelimits"
 	reqdataprodprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/admitter/latencyslo"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/requestattributereporter"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/requestdataproducer/inflightload"
+	latencyproducer "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/requestdataproducer/predictedlatency"
 	testresponsereceived "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/test/responsereceived"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/openai"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/passthrough"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requesthandling/parsers/vllmgrpc"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/filter/prefixcacheaffinity"
+	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/filter/sloheadroomtier"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/picker"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/profile"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/kvcacheutilization"
+	latencyscorer "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/latency"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/loraaffinity"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/predictedlatency"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/prefix"
@@ -94,9 +99,6 @@ import (
 )
 
 const (
-	// enableExperimentalDatalayerV2 defines the environment variable used as feature flag for the pluggable data layer.
-	// DEPRECATION NOTICE - this env var will be removed in the next version as we switch to configuring the EPP using FeatureGates in the config file.
-	enableExperimentalDatalayerV2 = "ENABLE_EXPERIMENTAL_DATALAYER_V2"
 	// enableExperimentalFlowControlLayer defines the environment variable used as a feature flag for the pluggable flow
 	// control layer.
 	// DEPRECATION NOTICE - this env var will be removed in the next version as we switch to configuring the EPP using FeatureGates in the config file.
@@ -234,8 +236,8 @@ func (r *Runner) setup(ctx context.Context, cfg *rest.Config, opts *runserver.Op
 		setupLog.Error(err, "Failed to parse configuration")
 		return nil, nil, err
 	}
-
-	epf := r.setupMetricsCollection(r.featureGates[datalayer.ExperimentalDatalayerFeatureGate], opts, pmc)
+	useNewMetrics := !r.featureGates[datalayer.EnableLegacyMetricsFeatureGate]
+	epf := r.setupMetricsCollection(useNewMetrics, opts, pmc)
 	gknn, err := extractGKNN(opts.PoolName, opts.PoolGroup, opts.PoolNamespace, opts.EndpointSelector)
 	if err != nil {
 		setupLog.Error(err, "Failed to extract GKNN")
@@ -324,7 +326,8 @@ func (r *Runner) setup(ctx context.Context, cfg *rest.Config, opts *runserver.Op
 
 	scheduler := scheduling.NewSchedulerWithConfig(r.schedulerConfig)
 
-	datalayerMetricsEnabled := r.featureGates[datalayer.ExperimentalDatalayerFeatureGate]
+	// Data layer is enabled by default; use the 'enableLegacyMetrics' feature gate to fall back to legacy polling.
+	datalayerMetricsEnabled := !r.featureGates[datalayer.EnableLegacyMetricsFeatureGate]
 	if err := r.configureAndStartDatalayer(ctx, datalayerMetricsEnabled, eppConfig.DataConfig, mgr); err != nil {
 		setupLog.Error(err, "failed to initialize data layer")
 		return nil, nil, err
@@ -374,7 +377,7 @@ func (r *Runner) setup(ctx context.Context, cfg *rest.Config, opts *runserver.Op
 		Director:                         director,
 		Parser:                           r.parser,
 		SaturationDetector:               eppConfig.SaturationDetector,
-		UseExperimentalDatalayerV2:       r.featureGates[datalayer.ExperimentalDatalayerFeatureGate], // pluggable data layer feature flag
+		UseExperimentalDatalayerV2:       r.featureGates[datalayer.ExperimentalDatalayerFeatureGate] || !r.featureGates[datalayer.EnableLegacyMetricsFeatureGate],
 	}
 
 	if err := serverRunner.SetupWithManager(mgr); err != nil {
@@ -463,10 +466,15 @@ func (r *Runner) registerInTreePlugins() {
 	fwkplugin.Register(ordering.EDFOrderingPolicyType, ordering.EDFOrderingPolicyFactory)
 	fwkplugin.Register(ordering.SLODeadlineOrderingPolicyType, ordering.SLODeadlineOrderingPolicyFactory)
 	fwkplugin.Register(usagelimits.StaticUsageLimitPolicyType, usagelimits.StaticPolicyFactory)
-	// DataProducer plugin
 	fwkplugin.Register(reqdataprodprefix.ApproxPrefixCachePluginType, reqdataprodprefix.ApproxPrefixCacheFactory)
-	// Latency predictor plugins
+	// Latency predictor plugins (old monolith + new decomposed)
 	fwkplugin.Register(predictedlatency.PredictedLatencyPluginType, predictedlatency.PredictedLatencyFactory)
+	fwkplugin.Register(latencyproducer.LatencyDataProviderPluginType, latencyproducer.PredictedLatencyFactory)
+	fwkplugin.Register(latencyslo.LatencyAdmissionPluginType, latencyslo.LatencyAdmissionFactory)
+	// Latency scoring and filtering plugins
+	fwkplugin.Register(prefixcacheaffinity.PluginType, prefixcacheaffinity.Factory)
+	fwkplugin.Register(sloheadroomtier.PluginType, sloheadroomtier.Factory)
+	fwkplugin.Register(latencyscorer.LatencyScorerType, latencyscorer.Factory)
 	// In-flight load producer
 	fwkplugin.Register(inflightload.InFlightLoadProducerType, inflightload.InFlightLoadProducerFactory)
 	// register filter for test purpose only (used in conformance tests)
@@ -504,6 +512,7 @@ func (r *Runner) parseConfigurationPhaseOne(ctx context.Context, opts *runserver
 	}
 
 	loader.RegisterFeatureGate(datalayer.ExperimentalDatalayerFeatureGate)
+	loader.RegisterFeatureGate(datalayer.EnableLegacyMetricsFeatureGate)
 	loader.RegisterFeatureGate(flowcontrol.FeatureGate)
 
 	r.registerInTreePlugins()
@@ -514,6 +523,18 @@ func (r *Runner) parseConfigurationPhaseOne(ctx context.Context, opts *runserver
 	}
 
 	r.featureGates = featureGates
+
+	if r.featureGates[datalayer.ExperimentalDatalayerFeatureGate] {
+		setupLog.Info("The data layer is now enabled by default. " +
+			"Please remove the 'dataLayer' feature gate from your config. " +
+			"To fall back to legacy metrics polling, use the 'enableLegacyMetrics' feature gate.")
+	}
+
+	if r.featureGates[datalayer.EnableLegacyMetricsFeatureGate] {
+		setupLog.Info("Data layer: using legacy metrics polling (opt-in via 'enableLegacyMetrics' feature gate)")
+	} else {
+		setupLog.Info("Data layer: ENABLED (default)")
+	}
 
 	return rawConfig, nil
 }
@@ -534,7 +555,6 @@ func makePodListFunc(ds datastore.Datastore) func() []types.NamespacedName {
 func (r *Runner) parseConfigurationPhaseTwo(ctx context.Context, rawConfig *configapi.EndpointPickerConfig, ds datastore.Datastore) (*config.Config, error) {
 	logger := log.FromContext(ctx)
 
-	applyDeprecatedEnvFeatureGate(enableExperimentalDatalayerV2, "Data Layer V2", datalayer.ExperimentalDatalayerFeatureGate, rawConfig)
 	applyDeprecatedEnvFeatureGate(enableExperimentalFlowControlLayer, "Flow Control layer", flowcontrol.FeatureGate, rawConfig)
 
 	handle := fwkplugin.NewEppHandle(ctx, makePodListFunc(ds))
