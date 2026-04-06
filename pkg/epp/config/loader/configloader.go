@@ -17,6 +17,7 @@ limitations under the License.
 package loader
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -166,6 +167,7 @@ func decodeRawConfig(configBytes []byte) (*configapi.EndpointPickerConfig, error
 
 func instantiatePlugins(configuredPlugins []configapi.PluginSpec, handle fwkplugin.Handle) error {
 	pluginNames := sets.New[string]()
+	var approxPrefixCacheParams json.RawMessage
 	for _, spec := range configuredPlugins {
 		if spec.Type == "" {
 			return fmt.Errorf("plugin '%s' is missing a type", spec.Name)
@@ -188,13 +190,16 @@ func instantiatePlugins(configuredPlugins []configapi.PluginSpec, handle fwkplug
 		// If the prefix cache scorer plugin is configured, create the corresponding dataproducer plugin.
 		// This is necessary because the prefix cache scorer plugin relies on the dataproducer plugin to populate its state.
 		// This is due to historical reasons where the scorer plugin was developed before the dataproducer plugins were introduced.
-		if spec.Type == prefix.PrefixCacheScorerPluginType && !existsByType(handle, reqdataprodprefix.ApproxPrefixCachePluginType) {
-			plugin, err := reqdataprodprefix.ApproxPrefixCacheFactory(reqdataprodprefix.ApproxPrefixCachePluginType, spec.Parameters, handle)
-			if err != nil {
-				return fmt.Errorf("failed to create ApproxPrefixCache plugin for prefix cache plugin '%s': %w", spec.Name, err)
-			}
-			handle.AddPlugin(reqdataprodprefix.ApproxPrefixCachePluginType, plugin)
+		if spec.Type == prefix.PrefixCacheScorerPluginType {
+			approxPrefixCacheParams = spec.Parameters
 		}
+	}
+	if approxPrefixCacheParams != nil && !existsByType(handle, reqdataprodprefix.ApproxPrefixCachePluginType) {
+		plugin, err := reqdataprodprefix.ApproxPrefixCacheFactory(reqdataprodprefix.ApproxPrefixCachePluginType, approxPrefixCacheParams, handle)
+		if err != nil {
+			return fmt.Errorf("failed to create ApproxPrefixCache plugin for prefix cache plugin: %w, params: %s", err, string(approxPrefixCacheParams))
+		}
+		handle.AddPlugin(reqdataprodprefix.ApproxPrefixCachePluginType, plugin)
 	}
 
 	return nil

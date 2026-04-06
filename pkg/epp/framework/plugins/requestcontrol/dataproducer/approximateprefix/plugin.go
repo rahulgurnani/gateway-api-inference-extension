@@ -183,13 +183,11 @@ func (p *prepareData) PreRequest(ctx context.Context, request *framework.LLMRequ
 	}
 
 	// Update indexer asynchronously to avoid blocking the request path.
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
+	p.wg.Go(func() {
 		for _, s := range servers {
 			p.indexerInst.Add(state.PrefixHashes, s)
 		}
-	}()
+	})
 
 	// Record metrics.
 	total := len(state.PrefixHashes)
