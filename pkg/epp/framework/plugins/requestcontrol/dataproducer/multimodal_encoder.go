@@ -23,9 +23,11 @@ import (
 	"encoding/hex"
 	"strings"
 
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodalencoder"
+	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 )
 
 const (
@@ -54,7 +56,9 @@ func (p *MultimodalEncoderPlugin) Consumes() map[string]any {
 
 // PrepareRequestData is the main hook for the MultimodalEncoderPlugin.
 func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, endpoints []schedulingtypes.Endpoint) error {
+	logger := log.FromContext(ctx)
 	if request.Body == nil {
+		logger.V(logutil.VERBOSE).Info("PrepareRequestData: request body is nil, skipping")
 		return nil
 	}
 
@@ -62,9 +66,10 @@ func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, reques
 
 	// 1. Handle ChatCompletions
 	if request.Body.ChatCompletions != nil {
+		logger.V(logutil.VERBOSE).Info("PrepareRequestData: scanning ChatCompletions messages", "messageCount", len(request.Body.ChatCompletions.Messages))
 		for _, msg := range request.Body.ChatCompletions.Messages {
 			for _, block := range msg.Content.Structured {
-				if item := extractFromBlock(block); item != nil {
+				if item := extractFromBlock(ctx, block); item != nil {
 					items = append(items, *item)
 				}
 			}
@@ -76,13 +81,14 @@ func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, reques
 	// Each item can have "content" which is an array of content parts.
 	if request.Body.Responses != nil {
 		if inputSlice, ok := request.Body.Responses.Input.([]any); ok {
+			logger.V(logutil.VERBOSE).Info("PrepareRequestData: scanning Responses input", "itemCount", len(inputSlice))
 			for _, item := range inputSlice {
 				if itemMap, ok := item.(map[string]any); ok {
 					if content, ok := itemMap["content"]; ok {
 						if contentSlice, ok := content.([]any); ok {
 							for _, part := range contentSlice {
 								if partMap, ok := part.(map[string]any); ok {
-									if mmItem := extractFromMap(partMap); mmItem != nil {
+									if mmItem := extractFromMap(ctx, partMap); mmItem != nil {
 										items = append(items, *mmItem)
 									}
 								}
@@ -96,19 +102,20 @@ func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, reques
 
 	// 3. Handle Conversations (/v1/conversations)
 	if request.Body.Conversations != nil {
+		logger.V(logutil.VERBOSE).Info("PrepareRequestData: scanning Conversations items", "itemCount", len(request.Body.Conversations.Items))
 		for _, convItem := range request.Body.Conversations.Items {
 			// Content can be a string or an array of content parts
 			if contentSlice, ok := convItem.Content.([]any); ok {
 				for _, part := range contentSlice {
 					if partMap, ok := part.(map[string]any); ok {
-						if mmItem := extractFromMap(partMap); mmItem != nil {
+						if mmItem := extractFromMap(ctx, partMap); mmItem != nil {
 							items = append(items, *mmItem)
 						}
 					}
 				}
 			} else if contentMap, ok := convItem.Content.(map[string]any); ok {
 				// Single content part
-				if mmItem := extractFromMap(contentMap); mmItem != nil {
+				if mmItem := extractFromMap(ctx, contentMap); mmItem != nil {
 					items = append(items, *mmItem)
 				}
 			}
@@ -116,9 +123,11 @@ func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, reques
 	}
 
 	if len(items) == 0 {
+		logger.V(logutil.VERBOSE).Info("PrepareRequestData: no multimodal items found")
 		return nil
 	}
 
+	logger.V(logutil.VERBOSE).Info("PrepareRequestData: storing multimodal data", "itemCount", len(items), "endpointCount", len(endpoints))
 	mmData := &attrmm.MultimodalData{Items: items}
 
 	for _, endpoint := range endpoints {
@@ -128,7 +137,9 @@ func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, reques
 	return nil
 }
 
-func extractFromBlock(block schedulingtypes.ContentBlock) *attrmm.MultimodalItem {
+func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *attrmm.MultimodalItem {
+	logger := log.FromContext(ctx)
+	logger.V(logutil.DEBUG).Info("extractFromBlock: processing block", "type", block.Type)
 	var data []byte
 	switch block.Type {
 	case "image_url":
@@ -139,29 +150,39 @@ func extractFromBlock(block schedulingtypes.ContentBlock) *attrmm.MultimodalItem
 				if strings.Contains(block.ImageURL.Url[:commaIdx], "base64") {
 					if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 						data = d
+					} else {
+						logger.V(logutil.DEBUG).Info("extractFromBlock: failed to decode image_url base64", "err", err)
 					}
 				}
 			}
+		} else {
+			logger.V(logutil.DEBUG).Info("extractFromBlock: image_url is an external URL, skipping")
 		}
 	case "input_audio":
 		if d, err := base64.StdEncoding.DecodeString(block.InputAudio.Data); err == nil {
 			data = d
+		} else {
+			logger.V(logutil.DEBUG).Info("extractFromBlock: failed to decode input_audio base64", "err", err)
 		}
 	}
 
 	if len(data) > 0 {
 		hash := sha256.Sum256(data)
-		return &attrmm.MultimodalItem{
+		item := &attrmm.MultimodalItem{
 			Data: data,
 			Size: len(data),
 			Hash: hex.EncodeToString(hash[:]),
 		}
+		logger.V(logutil.DEBUG).Info("extractFromBlock: extracted item", "type", block.Type, "sizeBytes", item.Size, "hash", item.Hash)
+		return item
 	}
 	return nil
 }
 
-func extractFromMap(m map[string]any) *attrmm.MultimodalItem {
+func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalItem {
+	logger := log.FromContext(ctx)
 	t, _ := m["type"].(string)
+	logger.V(logutil.DEBUG).Info("extractFromMap: processing part", "type", t)
 	var data []byte
 	switch t {
 	case "image_url":
@@ -174,25 +195,33 @@ func extractFromMap(m map[string]any) *attrmm.MultimodalItem {
 				if strings.Contains(url[:commaIdx], "base64") {
 					if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 						data = d
+					} else {
+						logger.V(logutil.DEBUG).Info("extractFromMap: failed to decode image_url base64", "err", err)
 					}
 				}
 			}
+		} else {
+			logger.V(logutil.DEBUG).Info("extractFromMap: image_url is an external URL, skipping")
 		}
 	case "input_audio":
 		ia, _ := m["input_audio"].(map[string]any)
 		dataStr, _ := ia["data"].(string)
 		if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 			data = d
+		} else {
+			logger.V(logutil.DEBUG).Info("extractFromMap: failed to decode input_audio base64", "err", err)
 		}
 	}
 
 	if len(data) > 0 {
 		hash := sha256.Sum256(data)
-		return &attrmm.MultimodalItem{
+		item := &attrmm.MultimodalItem{
 			Data: data,
 			Size: len(data),
 			Hash: hex.EncodeToString(hash[:]),
 		}
+		logger.V(logutil.DEBUG).Info("extractFromMap: extracted item", "type", t, "sizeBytes", item.Size, "hash", item.Hash)
+		return item
 	}
 	return nil
 }
