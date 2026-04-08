@@ -170,10 +170,9 @@ func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *
 		hash := sha256.Sum256(data)
 		item := &attrmm.MultimodalItem{
 			Data: data,
-			Size: len(data),
 			Hash: hex.EncodeToString(hash[:]),
 		}
-		logger.V(logutil.DEBUG).Info("extractFromBlock: extracted item", "type", block.Type, "sizeBytes", item.Size, "hash", item.Hash)
+		logger.V(logutil.DEBUG).Info("extractFromBlock: extracted item", "type", block.Type, "sizeBytes", len(data), "hash", item.Hash)
 		return item
 	}
 	return nil
@@ -217,10 +216,9 @@ func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalIte
 		hash := sha256.Sum256(data)
 		item := &attrmm.MultimodalItem{
 			Data: data,
-			Size: len(data),
 			Hash: hex.EncodeToString(hash[:]),
 		}
-		logger.V(logutil.DEBUG).Info("extractFromMap: extracted item", "type", t, "sizeBytes", item.Size, "hash", item.Hash)
+		logger.V(logutil.DEBUG).Info("extractFromMap: extracted item", "type", t, "sizeBytes", len(data), "hash", item.Hash)
 		return item
 	}
 	return nil

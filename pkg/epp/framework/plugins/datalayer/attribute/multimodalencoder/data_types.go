@@ -24,10 +24,9 @@ const (
 	MultimodalDataKey = "MultimodalDataKey"
 )
 
-// MultimodalItem holds the decoded bytes, size, and content hash for a single multimodal element.
+// MultimodalItem holds the decoded bytes and content hash for a single multimodal element.
 type MultimodalItem struct {
 	Data []byte
-	Size int
 	Hash string
 }
 
@@ -48,7 +47,6 @@ func (m *MultimodalData) Clone() fwkdl.Cloneable {
 		copy(dataCopy, item.Data)
 		cloned.Items[i] = MultimodalItem{
 			Data: dataCopy,
-			Size: item.Size,
 			Hash: item.Hash,
 		}
 	}

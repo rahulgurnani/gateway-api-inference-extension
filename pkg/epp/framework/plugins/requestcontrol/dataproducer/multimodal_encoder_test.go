@@ -86,8 +86,8 @@ func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
 				},
 			},
 			wantItems: []attrmm.MultimodalItem{
-				{Data: imageData, Size: len(imageData), Hash: imageHashStr},
-				{Data: audioData, Size: len(audioData), Hash: audioHashStr},
+				{Data: imageData, Hash: imageHashStr},
+				{Data: audioData, Hash: audioHashStr},
 			},
 			wantEndpoints: true,
 		},
@@ -113,7 +113,7 @@ func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
 				},
 			},
 			wantItems: []attrmm.MultimodalItem{
-				{Data: imageData, Size: len(imageData), Hash: imageHashStr},
+				{Data: imageData, Hash: imageHashStr},
 			},
 			wantEndpoints: true,
 		},
@@ -139,7 +139,7 @@ func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
 				},
 			},
 			wantItems: []attrmm.MultimodalItem{
-				{Data: audioData, Size: len(audioData), Hash: audioHashStr},
+				{Data: audioData, Hash: audioHashStr},
 			},
 			wantEndpoints: true,
 		},
@@ -163,7 +163,7 @@ func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
 				},
 			},
 			wantItems: []attrmm.MultimodalItem{
-				{Data: imageData, Size: len(imageData), Hash: imageHashStr},
+				{Data: imageData, Hash: imageHashStr},
 			},
 			wantEndpoints: true,
 		},
