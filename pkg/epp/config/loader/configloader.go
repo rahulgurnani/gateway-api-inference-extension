@@ -38,6 +38,7 @@ import (
 	fwkrh "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requesthandling"
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 	reqdataprodprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/dataproducer/approximateprefix"
+	reqdataprodmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/requestcontrol/dataproducer/multimodal"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/profile"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/scheduling/scorer/prefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/handlers"
@@ -205,7 +206,18 @@ func instantiatePlugins(configuredPlugins []configapi.PluginSpec, handle fwkplug
 		if err != nil {
 			return fmt.Errorf("failed to create ApproxPrefixCache plugin for prefix cache plugin: %w, params: %s", err, string(approxPrefixCacheParams))
 		}
+
 		handle.AddPlugin(reqdataprodprefix.ApproxPrefixCachePluginType, plugin)
+	}
+
+	// If the prefix cache scorer plugin is configured, create the corresponding multimodal encoder plugin.
+	if foundPrefixCacheScorer && !existsByType(handle, reqdataprodmm.MultimodalDataPluginType) {
+		plugin, err := reqdataprodmm.MultimodalDataPluginFactory(reqdataprodmm.MultimodalDataPluginType, approxPrefixCacheParams, handle)
+		if err != nil {
+			return fmt.Errorf("failed to create multimodal data plugin: %w", err)
+		}
+
+		handle.AddPlugin(reqdataprodmm.MultimodalDataPluginType, plugin)
 	}
 
 	return nil

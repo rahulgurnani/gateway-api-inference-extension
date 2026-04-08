@@ -14,48 +14,49 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dataproducer
+package multimodal
 
 import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"strings"
 
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
-	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodalencoder"
-	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
+	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodal"
 )
 
 const (
-	MultimodalEncoderPluginType = "multimodal-encoder-data-producer"
+	MultimodalDataPluginType = "multimodal-data-producer"
 )
 
-// MultimodalEncoderPlugin is a plugin interface for encoding multimodal data in LLM requests.
-type MultimodalEncoderPlugin struct {
+// MultimodalDataPlugin is a plugin interface for encoding multimodal data in LLM requests.
+type MultimodalDataPlugin struct {
 }
 
 // TypedName returns the type and name of the plugin.
-func (p *MultimodalEncoderPlugin) TypedName() plugin.TypedName {
+func (p *MultimodalDataPlugin) TypedName() plugin.TypedName {
 	return plugin.TypedName{
-		Type: MultimodalEncoderPluginType,
-		Name: MultimodalEncoderPluginType,
+		Type: MultimodalDataPluginType,
+		Name: MultimodalDataPluginType,
 	}
 }
 
-func (p *MultimodalEncoderPlugin) Produces() map[string]any {
+func (p *MultimodalDataPlugin) Produces() map[string]any {
 	return map[string]any{attrmm.MultimodalDataKey: attrmm.MultimodalData{}}
 }
 
-func (p *MultimodalEncoderPlugin) Consumes() map[string]any {
+func (p *MultimodalDataPlugin) Consumes() map[string]any {
 	return map[string]any{}
 }
 
-// PrepareRequestData is the main hook for the MultimodalEncoderPlugin.
-func (p *MultimodalEncoderPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, endpoints []schedulingtypes.Endpoint) error {
+// PrepareRequestData is the main hook for the MultimodalDataPlugin.
+func (p *MultimodalDataPlugin) PrepareRequestData(ctx context.Context, request *schedulingtypes.LLMRequest, endpoints []schedulingtypes.Endpoint) error {
 	logger := log.FromContext(ctx)
 	if request.Body == nil {
 		logger.V(logutil.VERBOSE).Info("PrepareRequestData: request body is nil, skipping")
@@ -222,4 +223,9 @@ func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalIte
 		return item
 	}
 	return nil
+}
+
+func MultimodalDataPluginFactory(name string, rawParameters json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
+	return &MultimodalDataPlugin{}, nil
+
 }

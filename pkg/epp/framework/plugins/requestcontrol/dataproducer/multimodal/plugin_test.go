@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dataproducer
+package multimodal
 
 import (
 	"context"
@@ -25,11 +25,11 @@ import (
 	"testing"
 
 	schedulingtypes "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
-	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodalencoder"
+	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodal"
 )
 
-func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
-	plugin := &MultimodalEncoderPlugin{}
+func TestMultimodalDataPlugin_PrepareRequestData(t *testing.T) {
+	plugin := &MultimodalDataPlugin{}
 	ctx := context.Background()
 
 	imageData := []byte("fake-image-data")
@@ -261,17 +261,17 @@ func TestMultimodalEncoderPlugin_PrepareRequestData(t *testing.T) {
 	}
 }
 
-func TestMultimodalEncoderPlugin_TypedName(t *testing.T) {
-	p := &MultimodalEncoderPlugin{}
+func TestMultimodalDataPlugin_TypedName(t *testing.T) {
+	p := &MultimodalDataPlugin{}
 	got := p.TypedName()
-	want := "multimodal-encoder-data-producer"
+	want := "multimodal-data-producer"
 	if got.Name != want || got.Type != want {
 		t.Errorf("TypedName() = %v, want %v", got, want)
 	}
 }
 
-func TestMultimodalEncoderPlugin_ProducesConsumes(t *testing.T) {
-	p := &MultimodalEncoderPlugin{}
+func TestMultimodalDataPlugin_ProducesConsumes(t *testing.T) {
+	p := &MultimodalDataPlugin{}
 	produces := p.Produces()
 	if _, ok := produces[attrmm.MultimodalDataKey]; !ok {
 		t.Errorf("Produces() should contain %s", attrmm.MultimodalDataKey)

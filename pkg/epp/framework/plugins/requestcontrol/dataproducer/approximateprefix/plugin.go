@@ -29,6 +29,7 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
 	framework "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
+	attrmm "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/multimodal"
 	attrprefix "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/plugins/datalayer/attribute/prefix"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/metrics"
 )
@@ -58,7 +59,7 @@ func (p *prepareData) TypedName() plugin.TypedName {
 
 // Consumes returns the data consumed by the plugin.
 func (p *prepareData) Consumes() map[string]any {
-	return map[string]any{}
+	return map[string]any{attrmm.MultimodalDataKey: attrmm.MultimodalData{}}
 }
 
 // Produces returns the data produced by the plugin.
@@ -243,6 +244,7 @@ func (p *prepareData) GetBlockSize(endpoints []framework.Endpoint) int {
 }
 
 // ApproxPrefixCacheFactory is the factory function for the prefix cache prepare data plugin.
+// cleanup name string here.
 func ApproxPrefixCacheFactory(name string, rawParameters json.RawMessage, handle plugin.Handle) (plugin.Plugin, error) {
 	parameters := defaultConfig
 	if rawParameters != nil {
