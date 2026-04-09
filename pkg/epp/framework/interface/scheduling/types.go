@@ -361,10 +361,10 @@ type Content struct {
 
 type ContentBlock struct {
 	Type       string     `json:"type"`
-	Text       string     `json:"text,omitempty"`
 	ImageURL   ImageBlock `json:"image_url"`
 	InputAudio AudioBlock `json:"input_audio"`
 	VideoURL   VideoBlock `json:"video_url"`
+	Text       string     `json:"text,omitempty"`
 }
 
 type ImageBlock struct {
