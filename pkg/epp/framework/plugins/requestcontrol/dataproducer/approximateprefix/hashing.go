@@ -19,10 +19,12 @@ package approximateprefix
 import (
 	"context"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 
 	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/blake3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
@@ -93,6 +95,19 @@ func toBytes(i blockHash) []byte {
 	return bytes
 }
 
+func hashMultimodalBlock(block scheduling.ContentBlock) (string, error) {
+	b, err := json.Marshal(block)
+	if err != nil {
+		return "", err
+	}
+	hash := blake3.Sum256(b)
+	return hex.EncodeToString(hash[:]), nil
+}
+
+func isMultimodalContentType(contentType string) bool {
+	return contentType == "image_url" || contentType == "input_audio" || contentType == "video_url"
+}
+
 func getUserInputBytes(request *scheduling.LLMRequest) ([]byte, error) {
 	switch {
 	case request.Body.Conversations != nil:
@@ -108,9 +123,27 @@ func getUserInputBytes(request *scheduling.LLMRequest) ([]byte, error) {
 		}
 		combined = append(combined, map[string]interface{}{"input": request.Body.Responses.Input})
 		return json.Marshal(combined)
-
 	case request.Body.ChatCompletions != nil:
-		return json.Marshal(request.Body.ChatCompletions.Messages)
+		var combined []any
+		for _, msg := range request.Body.ChatCompletions.Messages {
+			if msg.Content.Raw != "" {
+				combined = append(combined, msg.Content.Raw)
+			} else if len(msg.Content.Structured) > 0 {
+				for _, block := range msg.Content.Structured {
+					if isMultimodalContentType(block.Type) {
+						hash, err := hashMultimodalBlock(block)
+						if err != nil {
+							return nil, err
+						}
+						combined = append(combined, hash)
+					} else if block.Type == "text" {
+						combined = append(combined, block.Text)
+					}
+				}
+			}
+		}
+		return json.Marshal(combined)
+
 
 	case request.Body.Completions != nil:
 		return []byte(request.Body.Completions.Prompt.PlainText()), nil
