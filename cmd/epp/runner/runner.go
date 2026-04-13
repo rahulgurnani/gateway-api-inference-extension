@@ -470,10 +470,11 @@ func (r *Runner) registerInTreePlugins() {
 	fwkplugin.Register(edf.EDFOrderingPolicyType, edf.EDFOrderingPolicyFactory)
 	fwkplugin.Register(slodeadline.SLODeadlineOrderingPolicyType, slodeadline.SLODeadlineOrderingPolicyFactory)
 	fwkplugin.Register(usagelimits.StaticUsageLimitPolicyType, usagelimits.StaticPolicyFactory)
-	fwkplugin.Register(reqdataprodprefix.ApproxPrefixCachePluginType, reqdataprodprefix.ApproxPrefixCacheFactory)
 	// Latency predictor plugins
 	fwkplugin.Register(latencyproducer.LatencyDataProviderPluginType, latencyproducer.PredictedLatencyFactory)
 	fwkplugin.Register(latencyslo.LatencyAdmissionPluginType, latencyslo.LatencyAdmissionFactory)
+	// Request level data producer plugins
+	fwkplugin.Register(reqdataprodprefix.ApproxPrefixCachePluginType, reqdataprodprefix.ApproxPrefixCacheFactory)
 	// Latency scoring and filtering plugins
 	fwkplugin.Register(prefixcacheaffinity.PluginType, prefixcacheaffinity.Factory)
 	fwkplugin.Register(sloheadroomtier.PluginType, sloheadroomtier.Factory)
@@ -498,6 +499,17 @@ func (r *Runner) registerInTreePlugins() {
 	// register saturation detector plugins
 	fwkplugin.Register(concurrency.ConcurrencyDetectorType, concurrency.ConcurrencyDetectorFactory)
 	fwkplugin.Register(utilization.UtilizationDetectorType, utilization.UtilizationDetectorFactory)
+}
+
+// dataProducerFactories returns the factories for all in-tree DataProducer plugins.
+// This explicit list is used to auto-configure data producers that satisfy consumers
+// already present in the config but whose required data is not yet being produced.
+func dataProducerFactories() map[string]fwkplugin.FactoryFunc {
+	return map[string]fwkplugin.FactoryFunc{
+		reqdataprodprefix.ApproxPrefixCachePluginType:    reqdataprodprefix.ApproxPrefixCacheFactory,
+		inflightload.InFlightLoadProducerType:            inflightload.InFlightLoadProducerFactory,
+		latencyproducer.LatencyDataProviderPluginType:    latencyproducer.PredictedLatencyFactory,
+	}
 }
 
 func (r *Runner) parseConfigurationPhaseOne(ctx context.Context, opts *runserver.Options) (*configapi.EndpointPickerConfig, error) {
@@ -572,12 +584,24 @@ func (r *Runner) parseConfigurationPhaseTwo(ctx context.Context, rawConfig *conf
 	// Add requestControl plugins
 	r.requestControlConfig.AddPlugins(handle.GetAllPlugins()...)
 
-	// Sort data plugins in DAG order (topological sort). Also check DAG for cycles.
-	dag, err := datalayer.ValidateAndOrderDataDependencies(handle.GetAllPlugins())
+	// Auto-create any DataProducer plugins that are needed by consumers already in
+	// the config but not yet satisfied by an existing producer.
+	dataProducers, err := datalayer.CreateMissingDataProducers(handle.GetAllPlugins(), dataProducerFactories(), handle)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create missing data producers - %w", err)
+	}
+	for _, p := range dataProducers {
+		handle.AddPlugin(p.TypedName().Name, p)
+	}
+	r.requestControlConfig.AddPlugins(dataProducers...)
 
+	// Sort data plugins in DAG order (topological sort). Also check DAG for cycles.
+	// This must run after auto-created producers are added so they are included in the ordering.
+	dag, err := datalayer.ValidateAndOrderDataDependencies(handle.GetAllPlugins())
 	if err != nil {
 		return nil, fmt.Errorf("failed to load the configuration - %w", err)
 	}
+
 	// The plugins will be executed in topologically sorted order to ensure that data is produced before it is consumed.
 	r.requestControlConfig.OrderPrepareDataPlugins(dag)
 
