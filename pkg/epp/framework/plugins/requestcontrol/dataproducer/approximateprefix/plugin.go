@@ -38,7 +38,7 @@ const (
 )
 
 var (
-	_ requestcontrol.PrepareDataPlugin = &prepareData{}
+	_ requestcontrol.DataProducer = &prepareData{}
 	_ requestcontrol.PreRequest        = &prepareData{}
 )
 

@@ -176,7 +176,7 @@ func (d *Director) HandleRequest(ctx context.Context, reqCtx *handlers.RequestCo
 
 	snapshotOfCandidatePods := d.toSchedulerEndpoints(endpointCandidates)
 	// Prepare per request data by running PrepareData plugins.
-	err = d.runPrepareDataPlugins(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
+	err = d.runDataProducers(ctx, reqCtx.SchedulingRequest, snapshotOfCandidatePods)
 	if err != nil {
 		// Don't fail the request if PrepareData plugins fail.
 		logger.Error(err, "failed to prepare per request data")
@@ -384,12 +384,12 @@ func (d *Director) runPreRequestPlugins(ctx context.Context, request *fwksched.I
 	}
 }
 
-func (d *Director) runPrepareDataPlugins(ctx context.Context,
+func (d *Director) runDataProducers(ctx context.Context,
 	request *fwksched.InferenceRequest, endpoints []fwksched.Endpoint) error {
-	if len(d.requestControlPlugins.prepareDataPlugins) == 0 {
+	if len(d.requestControlPlugins.dataProducers) == 0 {
 		return nil
 	}
-	return prepareDataPluginsWithTimeout(prepareDataTimeout, d.requestControlPlugins.prepareDataPlugins, ctx, request, endpoints)
+	return dataProducersWithTimeout(prepareDataTimeout, d.requestControlPlugins.dataProducers, ctx, request, endpoints)
 }
 
 func (d *Director) runAdmissionPlugins(ctx context.Context,

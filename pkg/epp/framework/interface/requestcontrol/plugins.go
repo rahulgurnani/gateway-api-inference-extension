@@ -65,8 +65,8 @@ type ResponseBody interface {
 }
 
 // PrepareRequestData is called by the director before scheduling requests.
-// PrepareDataPlugin plugin is implemented by data producers which produce data from different sources.
-type PrepareDataPlugin interface {
+// DataProducer plugin is implemented by data producers which produce data from different sources.
+type DataProducer interface {
 	plugin.ProducerPlugin
 	plugin.ConsumerPlugin
 	PrepareRequestData(ctx context.Context, request *types.InferenceRequest, pods []types.Endpoint) error

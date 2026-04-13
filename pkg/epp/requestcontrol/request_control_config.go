@@ -25,7 +25,7 @@ import (
 func NewConfig() *Config {
 	return &Config{
 		admissionPlugins:         []fwk.AdmissionPlugin{},
-		prepareDataPlugins:       []fwk.PrepareDataPlugin{},
+		dataProducers:            []fwk.DataProducer{},
 		preRequestPlugins:        []fwk.PreRequest{},
 		responseReceivedPlugins:  []fwk.ResponseHeader{},
 		responseStreamingPlugins: []fwk.ResponseBody{},
@@ -35,7 +35,7 @@ func NewConfig() *Config {
 // Config provides a configuration for the requestcontrol plugins.
 type Config struct {
 	admissionPlugins         []fwk.AdmissionPlugin
-	prepareDataPlugins       []fwk.PrepareDataPlugin
+	dataProducers            []fwk.DataProducer
 	preRequestPlugins        []fwk.PreRequest
 	responseReceivedPlugins  []fwk.ResponseHeader
 	responseStreamingPlugins []fwk.ResponseBody
@@ -62,9 +62,9 @@ func (c *Config) WithResponseStreamingPlugins(plugins ...fwk.ResponseBody) *Conf
 	return c
 }
 
-// WithPrepareDataPlugins sets the given plugins as the PrepareData plugins.
-func (c *Config) WithPrepareDataPlugins(plugins ...fwk.PrepareDataPlugin) *Config {
-	c.prepareDataPlugins = plugins
+// WithDataProducers sets the given plugins as the DataProducer plugins.
+func (c *Config) WithDataProducers(plugins ...fwk.DataProducer) *Config {
+	c.dataProducers = plugins
 	return c
 }
 
@@ -88,8 +88,8 @@ func (c *Config) AddPlugins(pluginObjects ...plugin.Plugin) {
 		if responseStreamingPlugin, ok := plugin.(fwk.ResponseBody); ok {
 			c.responseStreamingPlugins = append(c.responseStreamingPlugins, responseStreamingPlugin)
 		}
-		if prepareDataPlugin, ok := plugin.(fwk.PrepareDataPlugin); ok {
-			c.prepareDataPlugins = append(c.prepareDataPlugins, prepareDataPlugin)
+		if dataProducer, ok := plugin.(fwk.DataProducer); ok {
+			c.dataProducers = append(c.dataProducers, dataProducer)
 		}
 		if admissionPlugin, ok := plugin.(fwk.AdmissionPlugin); ok {
 			c.admissionPlugins = append(c.admissionPlugins, admissionPlugin)
@@ -97,11 +97,11 @@ func (c *Config) AddPlugins(pluginObjects ...plugin.Plugin) {
 	}
 }
 
-// OrderPrepareDataPlugins reorders the prepareDataPlugins in the Config based on the given sorted plugin names.
-func (c *Config) OrderPrepareDataPlugins(sortedPluginNames []string) {
-	sortedPlugins := make([]fwk.PrepareDataPlugin, 0, len(sortedPluginNames))
-	nameToPlugin := make(map[string]fwk.PrepareDataPlugin)
-	for _, plugin := range c.prepareDataPlugins {
+// OrderDataProducers reorders the dataProducers in the Config based on the given sorted plugin names.
+func (c *Config) OrderDataProducers(sortedPluginNames []string) {
+	sortedPlugins := make([]fwk.DataProducer, 0, len(sortedPluginNames))
+	nameToPlugin := make(map[string]fwk.DataProducer)
+	for _, plugin := range c.dataProducers {
 		nameToPlugin[plugin.TypedName().String()] = plugin
 	}
 	for _, name := range sortedPluginNames {
@@ -109,5 +109,5 @@ func (c *Config) OrderPrepareDataPlugins(sortedPluginNames []string) {
 			sortedPlugins = append(sortedPlugins, plugin)
 		}
 	}
-	c.prepareDataPlugins = sortedPlugins
+	c.dataProducers = sortedPlugins
 }
