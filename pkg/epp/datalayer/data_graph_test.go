@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	k8stypes "k8s.io/apimachinery/pkg/types"
+	configapi "sigs.k8s.io/gateway-api-inference-extension/apix/config/v1alpha1"
 	fwkdl "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/datalayer"
 	fwkfcmocks "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/flowcontrol/mocks"
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
@@ -288,7 +289,10 @@ func TestCreateMissingDataProducers(t *testing.T) {
 
 	// A DataProducer that produces keyA.
 	producerTypeA := "producer-a"
-	producerAFactory := fwkplugin.FactoryFunc(func(name string, _ json.RawMessage, handle fwkplugin.Handle) (fwkplugin.Plugin, error) {
+	producerAFactory := fwkplugin.FactoryFunc(func(name string, params json.RawMessage, handle fwkplugin.Handle) (fwkplugin.Plugin, error) {
+		if params != nil {
+			return &mockPrepareRequestDataP{name: name + "-with-params-" + string(params), produces: map[string]any{keyA: nil}}, nil
+		}
 		return &mockPrepareRequestDataP{name: name, produces: map[string]any{keyA: nil}}, nil
 	})
 
@@ -316,6 +320,7 @@ func TestCreateMissingDataProducers(t *testing.T) {
 		name            string
 		existingPlugins []fwkplugin.Plugin
 		registry        map[string]fwkplugin.FactoryFunc
+		pluginSpecs     []configapi.PluginSpec
 		wantTypes       []string // TypedName.Type of expected auto-created producers
 		wantErr         bool
 	}{
@@ -379,11 +384,22 @@ func TestCreateMissingDataProducers(t *testing.T) {
 			registry:        map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
 			wantTypes:       nil,
 		},
+		{
+			name: "creates producer with parameters from consumer",
+			existingPlugins: []fwkplugin.Plugin{
+				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
+			},
+			registry: map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			pluginSpecs: []configapi.PluginSpec{
+				{Name: "MockSchedulingPlugin", Type: "mock", Parameters: json.RawMessage(`{"param":"value"}`)},
+			},
+			wantTypes: []string{producerTypeA + "-with-params-{\"param\":\"value\"}"},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.registry, handle)
+			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.registry, handle, tc.pluginSpecs)
 
 			if tc.wantErr {
 				assert.Error(t, err)
