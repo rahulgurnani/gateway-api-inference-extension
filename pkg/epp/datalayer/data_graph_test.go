@@ -19,7 +19,7 @@ package datalayer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"maps"
 	"testing"
 
@@ -79,7 +79,7 @@ func (m *typedMockPlugin) TypedName() fwkplugin.TypedName {
 }
 
 func (m *typedMockPlugin) Produces() map[string]any { return m.produces }
-func (m *typedMockPlugin) Consumes() map[string]any  { return nil }
+func (m *typedMockPlugin) Consumes() map[string]any { return nil }
 func (m *typedMockPlugin) PrepareRequestData(ctx context.Context, request *fwksch.InferenceRequest, endpoints []fwksch.Endpoint) error {
 	return nil
 }
@@ -311,7 +311,7 @@ func TestCreateMissingDataProducers(t *testing.T) {
 	// A factory that always fails.
 	failingType := "failing"
 	failingFactory := fwkplugin.FactoryFunc(func(name string, _ json.RawMessage, handle fwkplugin.Handle) (fwkplugin.Plugin, error) {
-		return nil, fmt.Errorf("requires params")
+		return nil, errors.New("requires params")
 	})
 
 	handle := fwkplugin.NewEppHandle(context.Background(), func() []k8stypes.NamespacedName { return nil })

@@ -192,15 +192,6 @@ func instantiatePlugins(configuredPlugins []configapi.PluginSpec, handle fwkplug
 	return nil
 }
 
-func existsByType(handle fwkplugin.Handle, pluginType string) bool {
-	for _, p := range handle.GetAllPlugins() {
-		if p.TypedName().Type == pluginType {
-			return true
-		}
-	}
-	return false
-}
-
 func buildSchedulerConfig(
 	configProfiles []configapi.SchedulingProfile,
 	handle fwkplugin.Handle,

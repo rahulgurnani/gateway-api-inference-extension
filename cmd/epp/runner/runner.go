@@ -506,9 +506,9 @@ func (r *Runner) registerInTreePlugins() {
 // already present in the config but whose required data is not yet being produced.
 func dataProducerFactories() map[string]fwkplugin.FactoryFunc {
 	return map[string]fwkplugin.FactoryFunc{
-		reqdataprodprefix.ApproxPrefixCachePluginType:    reqdataprodprefix.ApproxPrefixCacheFactory,
-		inflightload.InFlightLoadProducerType:            inflightload.InFlightLoadProducerFactory,
-		latencyproducer.LatencyDataProviderPluginType:    latencyproducer.PredictedLatencyFactory,
+		reqdataprodprefix.ApproxPrefixCachePluginType: reqdataprodprefix.ApproxPrefixCacheFactory,
+		inflightload.InFlightLoadProducerType:         inflightload.InFlightLoadProducerFactory,
+		latencyproducer.LatencyDataProviderPluginType: latencyproducer.PredictedLatencyFactory,
 	}
 }
 
