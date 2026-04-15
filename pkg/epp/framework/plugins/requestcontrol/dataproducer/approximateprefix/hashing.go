@@ -22,6 +22,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/zeebo/blake3"
@@ -105,9 +106,59 @@ func hashMultimodalBlock(block requesthandling.ContentBlock) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
-func isMultimodalContentType(contentType string) bool {
-	return contentType == "image_url" || contentType == "input_audio" || contentType == "video_url"
+func isMultimodalUrl(block requesthandling.ContentBlock) bool {
+	if block.Type == "image_url" || block.Type == "video_url" {
+		// the image_url field is slightly a misnomer—it doesn't just take web links. It natively supports Base64 encoded data using the Data URI scheme.
+		if strings.HasPrefix(block.ImageURL.Url, "data:image") || strings.HasPrefix(block.VideoURL.Url, "data:video") {
+			return false
+		}
+		return true
+	} 
+	return false
 }
+
+// hashMultimodalContent hashes the multimodal content of a message if it contains multimodal content.
+func hashMultimodalContentIfPresent(msg requesthandling.Message) ([]any, error) {
+	var combined []any
+	// explicitly adding role to the hash to differentiate between messages with same content but different roles.
+	combined = append(combined, msg.Role)
+	for _, block := range msg.Content.Structured {
+		if isMultimodalUrl(block) {
+			// Always hash multimodal URLs to avoid long URLs being part of the hash, which cause hotspotting.
+			hash, err := hashMultimodalBlock(block)
+			if err != nil {
+				return nil, err
+			}
+			combined = append(combined, hash)
+		} else if block.Type == "text" {
+			combined = append(combined, block.Text)
+		} else {
+			b, err := json.Marshal(block)
+			if err != nil {
+				return nil, err
+			}
+			combined = append(combined, string(b))
+		} 
+	}
+	return combined, nil
+}
+
+func parseChatCompletions(messages []requesthandling.Message) ([]any, error) {
+	var res []any
+	for _, msg := range messages {
+		if msg.Content.Raw != "" {
+			res = append(res, msg.Content.Raw)
+		} else if len(msg.Content.Structured) > 0 {
+			hashedContent, err := hashMultimodalContentIfPresent(msg)
+			if err != nil {
+				return nil, err
+			}
+			res = append(res, hashedContent)
+		}
+	}
+	return res, nil
+}
+
 
 func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 	switch {
@@ -115,6 +166,7 @@ func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 		return json.Marshal(request.Body.Conversations.Items)
 
 	case request.Body.Responses != nil:
+		// TODO(#2172): Parse multimodal content in responses API as well and hash multimodal URLs.
 		var combined []map[string]interface{}
 		if request.Body.Responses.Instructions != nil {
 			combined = append(combined, map[string]interface{}{"instructions": request.Body.Responses.Instructions})
@@ -124,26 +176,13 @@ func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 		}
 		combined = append(combined, map[string]interface{}{"input": request.Body.Responses.Input})
 		return json.Marshal(combined)
+		
 	case request.Body.ChatCompletions != nil:
-		var combined []any
-		for _, msg := range request.Body.ChatCompletions.Messages {
-			if msg.Content.Raw != "" {
-				combined = append(combined, msg.Content.Raw)
-			} else if len(msg.Content.Structured) > 0 {
-				for _, block := range msg.Content.Structured {
-					if isMultimodalContentType(block.Type) {
-						hash, err := hashMultimodalBlock(block)
-						if err != nil {
-							return nil, err
-						}
-						combined = append(combined, hash)
-					} else if block.Type == "text" {
-						combined = append(combined, block.Text)
-					}
-				}
-			}
+		res, err := parseChatCompletions(request.Body.ChatCompletions.Messages)
+		if err != nil {
+			return nil, err
 		}
-		return json.Marshal(combined)
+		return json.Marshal(res)
 
 	case request.Body.Completions != nil:
 		return []byte(request.Body.Completions.Prompt.PlainText()), nil

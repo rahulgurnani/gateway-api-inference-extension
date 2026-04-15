@@ -65,6 +65,7 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
+								Role: "user",
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Hello"},
@@ -77,12 +78,16 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined []string
+				var combined [][]string
 				if err := json.Unmarshal(got, &combined); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 2 || combined[0] != "Hello" || combined[1] != "World" {
-					t.Errorf("Unexpected content: %v", combined)
+				if len(combined) != 1 {
+					t.Fatalf("Expected 1 element, got %d", len(combined))
+				}
+				msg := combined[0]
+				if len(msg) != 3 || msg[0] != "user" || msg[1] != "Hello" || msg[2] != "World" {
+					t.Errorf("Unexpected content: %v", msg)
 				}
 			},
 		},
@@ -93,6 +98,7 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
+								Role: "user",
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Describe:"},
@@ -105,18 +111,25 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined []string
+				var combined [][]string
 				if err := json.Unmarshal(got, &combined); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 2 {
-					t.Fatalf("Expected 2 elements, got %d", len(combined))
+				if len(combined) != 1 {
+					t.Fatalf("Expected 1 element, got %d", len(combined))
 				}
-				if combined[0] != "Describe:" {
-					t.Errorf("Expected 'Describe:', got %s", combined[0])
+				msg := combined[0]
+				if len(msg) != 3 {
+					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
 				}
-				if len(combined[1]) != 64 {
-					t.Errorf("Expected 64-char hash, got length %d", len(combined[1]))
+				if msg[0] != "user" {
+					t.Errorf("Expected 'user', got %s", msg[0])
+				}
+				if msg[1] != "Describe:" {
+					t.Errorf("Expected 'Describe:', got %s", msg[1])
+				}
+				if len(msg[2]) != 64 {
+					t.Errorf("Expected 64-char hash, got length %d", len(msg[2]))
 				}
 			},
 		},
@@ -127,6 +140,7 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
+								Role: "user",
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "url1"}},
@@ -139,19 +153,26 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined []string
+				var combined [][]string
 				if err := json.Unmarshal(got, &combined); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 2 {
-					t.Fatalf("Expected 2 elements, got %d", len(combined))
+				if len(combined) != 1 {
+					t.Fatalf("Expected 1 element, got %d", len(combined))
 				}
-				for i, hash := range combined {
-					if len(hash) != 64 {
-						t.Errorf("Element %d: expected 64-char hash, got length %d", i, len(hash))
+				msg := combined[0]
+				if len(msg) != 3 {
+					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
+				}
+				if msg[0] != "user" {
+					t.Errorf("Expected 'user', got %s", msg[0])
+				}
+				for i := 1; i < 3; i++ {
+					if len(msg[i]) != 64 {
+						t.Errorf("Element %d: expected 64-char hash, got length %d", i, len(msg[i]))
 					}
 				}
-				if combined[0] == combined[1] {
+				if msg[1] == msg[2] {
 					t.Errorf("Hashes for different URLs should be different")
 				}
 			},
