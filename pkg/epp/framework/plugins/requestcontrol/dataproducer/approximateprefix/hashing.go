@@ -22,9 +22,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/zeebo/blake3"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	logutil "sigs.k8s.io/gateway-api-inference-extension/pkg/common/observability/logging"
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requesthandling"
@@ -96,64 +96,83 @@ func toBytes(i blockHash) []byte {
 	return bytes
 }
 
-func hashMultimodalBlock(block requesthandling.ContentBlock) (string, error) {
-	b, err := json.Marshal(block)
-	if err != nil {
-		return "", err
+// hashMultimodalContent returns a 128-character hash of the multimodal data by repeating a 64-bit xxhash 8 times.
+func hashMultimodalContent(block requesthandling.ContentBlock) (string, error) {
+	var dataToHash string
+	switch block.Type {
+	case "image_url":
+		dataToHash = block.ImageURL.Url
+	case "video_url":
+		dataToHash = block.VideoURL.Url
+	case "input_audio":
+		dataToHash = block.InputAudio.Data
+	default:
+		b, err := json.Marshal(block)
+		if err != nil {
+			return "", err
+		}
+		dataToHash = string(b)
 	}
-	hash := blake3.Sum256(b)
-	return hex.EncodeToString(hash[:]), nil
+
+	data := []byte(dataToHash)
+	h := xxhash.Sum64(data)
+	out := make([]byte, 8)
+	binary.LittleEndian.PutUint64(out, h)
+	hashStr := hex.EncodeToString(out)
+	// max block size vLLM supports is 32 tokens. Each token is on average 4 chars. 4*32=128 characters.
+	// hashStr is 16 characters. 8 * 16 = 128 characters.
+	return strings.Repeat(hashStr, 8), nil
 }
 
-func containsMultimodalContent(block requesthandling.ContentBlock) bool {
-	if block.Type == "image_url" || block.Type == "video_url" || block.Type == "input_audio" {
-		return true
-	} 
-	return false
+func isMultimodalContentType(contentType string) bool {
+	return contentType == "image_url" || contentType == "video_url" || contentType == "input_audio"
 }
 
-// hashMultimodalContent hashes the multimodal content of a message if it contains multimodal content.
-func hashMultimodalContentIfPresent(msg requesthandling.Message) ([]any, error) {
-	var combined []any
-	// explicitly adding role to the hash to differentiate between messages with same content but different roles.
-	combined = append(combined, msg.Role)
-	for _, block := range msg.Content.Structured {
-		if containsMultimodalContent(block) {
-			// Always hash multimodal URLs to avoid long URLs being part of the hash, which cause hotspotting.
-			hash, err := hashMultimodalBlock(block)
-			if err != nil {
-				return nil, err
-			}
-			combined = append(combined, hash)
-		} else if block.Type == "text" {
-			combined = append(combined, block.Text)
-		} else {
-			b, err := json.Marshal(block)
-			if err != nil {
-				return nil, err
-			}
-			combined = append(combined, string(b))
-		} 
-	}
-	return combined, nil
-}
-
-func parseChatCompletions(messages []requesthandling.Message) ([]any, error) {
-	var res []any
-	for _, msg := range messages {
-		if msg.Content.Raw != "" {
-			res = append(res, msg.Content.Raw)
-		} else if len(msg.Content.Structured) > 0 {
-			hashedContent, err := hashMultimodalContentIfPresent(msg)
-			if err != nil {
-				return nil, err
-			}
-			res = append(res, hashedContent)
+// replaceMultimodalURLsInBlocks returns a copy of blocks with multimodal URL/data values replaced
+// by fixed-length hashes, so that long URLs with shared prefixes don't collide in prefix cache keys.
+func replaceMultimodalURLsInBlocks(blocks []requesthandling.ContentBlock) ([]requesthandling.ContentBlock, error) {
+	result := make([]requesthandling.ContentBlock, len(blocks))
+	for i, block := range blocks {
+		if !isMultimodalContentType(block.Type) {
+			result[i] = block
+			continue
+		}
+		hash, err := hashMultimodalContent(block)
+		if err != nil {
+			return nil, err
+		}
+		result[i] = requesthandling.ContentBlock{Type: block.Type}
+		switch block.Type {
+		case "image_url":
+			result[i].ImageURL = requesthandling.ImageBlock{Url: hash}
+		case "video_url":
+			result[i].VideoURL = requesthandling.VideoBlock{Url: hash}
+		case "input_audio":
+			result[i].InputAudio = requesthandling.AudioBlock{Data: hash, Format: block.InputAudio.Format}
 		}
 	}
-	return res, nil
+	return result, nil
 }
 
+// parseChatCompletions returns a copy of the messages with multimodal URLs replaced by their hashes.
+// The full Message struct (including role and content structure) is preserved and marshaled as-is,
+// making the resulting bytes easy to reason about.
+func parseChatCompletions(messages []requesthandling.Message) ([]requesthandling.Message, error) {
+	result := make([]requesthandling.Message, len(messages))
+	for i, msg := range messages {
+		result[i] = requesthandling.Message{Role: msg.Role}
+		if msg.Content.Raw != "" {
+			result[i].Content = requesthandling.Content{Raw: msg.Content.Raw}
+			continue
+		}
+		blocks, err := replaceMultimodalURLsInBlocks(msg.Content.Structured)
+		if err != nil {
+			return nil, err
+		}
+		result[i].Content = requesthandling.Content{Structured: blocks}
+	}
+	return result, nil
+}
 
 func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 	switch {

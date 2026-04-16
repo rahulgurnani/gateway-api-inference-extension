@@ -10,7 +10,7 @@ import (
 
 
 
-func TestHashMultimodalBlock(t *testing.T) {
+func TestHashMultimodalContent(t *testing.T) {
 	tests := []struct {
 		name    string
 		block   requesthandling.ContentBlock
@@ -36,16 +36,16 @@ func TestHashMultimodalBlock(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := hashMultimodalBlock(tt.block)
+			got, err := hashMultimodalContent(tt.block)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("hashMultimodalBlock() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("hashMultimodalContent() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got == "" && !tt.wantErr {
-				t.Errorf("hashMultimodalBlock() got empty string")
+				t.Errorf("hashMultimodalContent() got empty string")
 			}
-			if len(got) != 64 && !tt.wantErr {
-				t.Errorf("hashMultimodalBlock() got length %d, want 64", len(got))
+			if len(got) != 128 && !tt.wantErr {
+				t.Errorf("hashMultimodalContent() got length %d, want 128", len(got))
 			}
 		})
 	}
@@ -78,16 +78,19 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined [][]string
-				if err := json.Unmarshal(got, &combined); err != nil {
+				var messages []requesthandling.Message
+				if err := json.Unmarshal(got, &messages); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 1 {
-					t.Fatalf("Expected 1 element, got %d", len(combined))
+				if len(messages) != 1 {
+					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				msg := combined[0]
-				if len(msg) != 3 || msg[0] != "user" || msg[1] != "Hello" || msg[2] != "World" {
-					t.Errorf("Unexpected content: %v", msg)
+				if messages[0].Role != "user" {
+					t.Errorf("Expected role 'user', got %q", messages[0].Role)
+				}
+				blocks := messages[0].Content.Structured
+				if len(blocks) != 2 || blocks[0].Text != "Hello" || blocks[1].Text != "World" {
+					t.Errorf("Unexpected content blocks: %v", blocks)
 				}
 			},
 		},
@@ -111,25 +114,25 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined [][]string
-				if err := json.Unmarshal(got, &combined); err != nil {
+				var messages []requesthandling.Message
+				if err := json.Unmarshal(got, &messages); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 1 {
-					t.Fatalf("Expected 1 element, got %d", len(combined))
+				if len(messages) != 1 {
+					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				msg := combined[0]
-				if len(msg) != 3 {
-					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
+				if messages[0].Role != "user" {
+					t.Errorf("Expected role 'user', got %q", messages[0].Role)
 				}
-				if msg[0] != "user" {
-					t.Errorf("Expected 'user', got %s", msg[0])
+				blocks := messages[0].Content.Structured
+				if len(blocks) != 2 {
+					t.Fatalf("Expected 2 blocks, got %d", len(blocks))
 				}
-				if msg[1] != "Describe:" {
-					t.Errorf("Expected 'Describe:', got %s", msg[1])
+				if blocks[0].Text != "Describe:" {
+					t.Errorf("Expected 'Describe:', got %q", blocks[0].Text)
 				}
-				if len(msg[2]) != 64 {
-					t.Errorf("Expected 64-char hash, got length %d", len(msg[2]))
+				if len(blocks[1].ImageURL.Url) != 128 {
+					t.Errorf("Expected 128-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
 				}
 			},
 		},
@@ -153,25 +156,25 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined [][]string
-				if err := json.Unmarshal(got, &combined); err != nil {
+				var messages []requesthandling.Message
+				if err := json.Unmarshal(got, &messages); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 1 {
-					t.Fatalf("Expected 1 element, got %d", len(combined))
+				if len(messages) != 1 {
+					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				msg := combined[0]
-				if len(msg) != 3 {
-					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
+				if messages[0].Role != "user" {
+					t.Errorf("Expected role 'user', got %q", messages[0].Role)
 				}
-				if msg[0] != "user" {
-					t.Errorf("Expected 'user', got %s", msg[0])
+				blocks := messages[0].Content.Structured
+				if len(blocks) != 2 {
+					t.Fatalf("Expected 2 blocks, got %d", len(blocks))
 				}
-				if msg[1] != "Analyze this image:" {
-					t.Errorf("Expected 'Analyze this image:', got %s", msg[1])
+				if blocks[0].Text != "Analyze this image:" {
+					t.Errorf("Expected 'Analyze this image:', got %q", blocks[0].Text)
 				}
-				if len(msg[2]) != 64 {
-					t.Errorf("Expected 64-char hash, got length %d", len(msg[2]))
+				if len(blocks[1].ImageURL.Url) != 128 {
+					t.Errorf("Expected 128-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
 				}
 			},
 		},
@@ -195,26 +198,23 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				},
 			},
 			verify: func(t *testing.T, got []byte) {
-				var combined [][]string
-				if err := json.Unmarshal(got, &combined); err != nil {
+				var messages []requesthandling.Message
+				if err := json.Unmarshal(got, &messages); err != nil {
 					t.Fatalf("Failed to unmarshal: %v", err)
 				}
-				if len(combined) != 1 {
-					t.Fatalf("Expected 1 element, got %d", len(combined))
+				if len(messages) != 1 {
+					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				msg := combined[0]
-				if len(msg) != 3 {
-					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
+				blocks := messages[0].Content.Structured
+				if len(blocks) != 2 {
+					t.Fatalf("Expected 2 blocks, got %d", len(blocks))
 				}
-				if msg[0] != "user" {
-					t.Errorf("Expected 'user', got %s", msg[0])
-				}
-				for i := 1; i < 3; i++ {
-					if len(msg[i]) != 64 {
-						t.Errorf("Element %d: expected 64-char hash, got length %d", i, len(msg[i]))
+				for i, block := range blocks {
+					if len(block.ImageURL.Url) != 128 {
+						t.Errorf("Block %d: expected 128-char hash URL, got length %d", i, len(block.ImageURL.Url))
 					}
 				}
-				if msg[1] == msg[2] {
+				if blocks[0].ImageURL.Url == blocks[1].ImageURL.Url {
 					t.Errorf("Hashes for different URLs should be different")
 				}
 			},

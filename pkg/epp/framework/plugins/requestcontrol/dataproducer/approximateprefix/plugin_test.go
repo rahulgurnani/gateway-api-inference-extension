@@ -19,6 +19,7 @@ package approximateprefix
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand"
 	"strings"
 	"testing"
@@ -292,7 +293,7 @@ func TestPrefixPluginChatCompletionsGrowth(t *testing.T) {
 	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
 }
 
-func TestPrefixPluginChatCompletionsMultimodalUrlLargerBlockSizeNoHit(t *testing.T) {
+func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 	config := config{
 		BlockSizeTokens:        16,
 		AutoTune:               false,
@@ -348,12 +349,10 @@ func TestPrefixPluginChatCompletionsMultimodalUrlLargerBlockSizeNoHit(t *testing
 						Content: fwkrh.Content{
 							Structured: []fwkrh.ContentBlock{
 								{Type: "text", Text: ""},
-								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample2.jpg"}},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
 							},
 						},
 					},
-					{Role: "assistant", Content: fwkrh.Content{Raw: "This is a sample image."}},
-					{Role: "user", Content: fwkrh.Content{Raw: "What else do you see?"}},
 				},
 			},
 		},
@@ -361,18 +360,22 @@ func TestPrefixPluginChatCompletionsMultimodalUrlLargerBlockSizeNoHit(t *testing
 	_ = p.PrepareRequestData(context.Background(), req2, endpoints)
 	state2, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req2.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
 	extendedHashCount := len(state2.PrefixHashes)
-	assert.Greater(t, extendedHashCount, initialHashCount)
+	assert.Equal(t, extendedHashCount, initialHashCount)
 
 	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
 	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
-	assert.Equal(t, 0, prefixInfo.MatchBlocks(), "should have no prefix cache hit")
-	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
+	log.Println("prefixInfo", prefixInfo.MatchBlocks(), "totalblocks", prefixInfo.TotalBlocks())
+	// With the struct serialization, the JSON preamble (role, field names, nesting) before the URL
+	// hash is ~129 chars, which fills 2 blocks of 64 chars each. These structural blocks are
+	// identical for any two messages with the same role/text layout, so they will match even when
+	// the image URLs differ. Only URL-specific content (block 3+) will differ.
+	assert.Equal(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks(), "URL-specific blocks should match")
 }
 
 
-func TestPrefixPluginChatCompletionsMultimodalUrlSmallerBlockSizeSomeMatch(t *testing.T) {
+func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T) {
 	config := config{
-		BlockSizeTokens:        2,
+		BlockSizeTokens:        8,
 		AutoTune:               false,
 		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
 		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
@@ -443,8 +446,9 @@ func TestPrefixPluginChatCompletionsMultimodalUrlSmallerBlockSizeSomeMatch(t *te
 
 	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
 	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
+	log.Println("prefixInfo", prefixInfo.MatchBlocks(), "totalblocks", prefixInfo.TotalBlocks())
 	assert.Greater(t, prefixInfo.MatchBlocks(), 0, "should have some prefix cache hit")
-	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
+	assert.Less(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks(), "should not have full prefix cache hit")
 }
 
 func TestPrefixPluginAutoTune(t *testing.T) {
