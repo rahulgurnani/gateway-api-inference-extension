@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/zeebo/blake3"
@@ -106,12 +105,8 @@ func hashMultimodalBlock(block requesthandling.ContentBlock) (string, error) {
 	return hex.EncodeToString(hash[:]), nil
 }
 
-func isMultimodalUrl(block requesthandling.ContentBlock) bool {
-	if block.Type == "image_url" || block.Type == "video_url" {
-		// the image_url field is slightly a misnomer—it doesn't just take web links. It natively supports Base64 encoded data using the Data URI scheme.
-		if strings.HasPrefix(block.ImageURL.Url, "data:image") || strings.HasPrefix(block.VideoURL.Url, "data:video") {
-			return false
-		}
+func containsMultimodalContent(block requesthandling.ContentBlock) bool {
+	if block.Type == "image_url" || block.Type == "video_url" || block.Type == "input_audio" {
 		return true
 	} 
 	return false
@@ -123,7 +118,7 @@ func hashMultimodalContentIfPresent(msg requesthandling.Message) ([]any, error) 
 	// explicitly adding role to the hash to differentiate between messages with same content but different roles.
 	combined = append(combined, msg.Role)
 	for _, block := range msg.Content.Structured {
-		if isMultimodalUrl(block) {
+		if containsMultimodalContent(block) {
 			// Always hash multimodal URLs to avoid long URLs being part of the hash, which cause hotspotting.
 			hash, err := hashMultimodalBlock(block)
 			if err != nil {

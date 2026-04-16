@@ -292,6 +292,161 @@ func TestPrefixPluginChatCompletionsGrowth(t *testing.T) {
 	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
 }
 
+func TestPrefixPluginChatCompletionsMultimodalUrlLargerBlockSizeNoHit(t *testing.T) {
+	config := config{
+		BlockSizeTokens:        16,
+		AutoTune:               false,
+		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
+		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
+	}
+	p, _ := newPrepareData(context.Background(), config, nil)
+
+	endpoint1 := fwksched.NewEndpoint(&fwkdl.EndpointMetadata{NamespacedName: k8stypes.NamespacedName{Name: "pod1"}}, &fwkdl.Metrics{}, fwkdl.NewAttributes())
+	endpoints := []fwksched.Endpoint{endpoint1}
+
+	req1 := &fwksched.InferenceRequest{
+		RequestId:   uuid.NewString(),
+		TargetModel: "test-model1",
+		Body: &fwkrh.InferenceRequestBody{
+			ChatCompletions: &fwkrh.ChatCompletionsRequest{
+				Messages: []fwkrh.Message{
+					{
+						Role: "user",
+						Content: fwkrh.Content{
+							Structured: []fwkrh.ContentBlock{
+								{Type: "text", Text: ""},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_ = p.PrepareRequestData(context.Background(), req1, endpoints)
+	state1, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req1.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
+	initialHashCount := len(state1.PrefixHashes)
+	assert.Greater(t, initialHashCount, 0)
+
+	schedulingResult := &fwksched.SchedulingResult{
+		PrimaryProfileName: "default",
+		ProfileResults: map[string]*fwksched.ProfileRunResult{
+			"default": {TargetEndpoints: []fwksched.Endpoint{endpoint1}},
+		},
+	}
+	p.PreRequest(context.Background(), req1, schedulingResult)
+	p.wg.Wait()
+
+	req2 := &fwksched.InferenceRequest{
+		RequestId:   uuid.NewString(),
+		TargetModel: "test-model1",
+		Body: &fwkrh.InferenceRequestBody{
+			ChatCompletions: &fwkrh.ChatCompletionsRequest{
+				Messages: []fwkrh.Message{
+					{
+						Role: "user",
+						Content: fwkrh.Content{
+							Structured: []fwkrh.ContentBlock{
+								{Type: "text", Text: ""},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample2.jpg"}},
+							},
+						},
+					},
+					{Role: "assistant", Content: fwkrh.Content{Raw: "This is a sample image."}},
+					{Role: "user", Content: fwkrh.Content{Raw: "What else do you see?"}},
+				},
+			},
+		},
+	}
+	_ = p.PrepareRequestData(context.Background(), req2, endpoints)
+	state2, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req2.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
+	extendedHashCount := len(state2.PrefixHashes)
+	assert.Greater(t, extendedHashCount, initialHashCount)
+
+	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
+	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
+	assert.Equal(t, 0, prefixInfo.MatchBlocks(), "should have no prefix cache hit")
+	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
+}
+
+
+func TestPrefixPluginChatCompletionsMultimodalUrlSmallerBlockSizeSomeMatch(t *testing.T) {
+	config := config{
+		BlockSizeTokens:        2,
+		AutoTune:               false,
+		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
+		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
+	}
+	p, _ := newPrepareData(context.Background(), config, nil)
+
+	endpoint1 := fwksched.NewEndpoint(&fwkdl.EndpointMetadata{NamespacedName: k8stypes.NamespacedName{Name: "pod1"}}, &fwkdl.Metrics{}, fwkdl.NewAttributes())
+	endpoints := []fwksched.Endpoint{endpoint1}
+
+	req1 := &fwksched.InferenceRequest{
+		RequestId:   uuid.NewString(),
+		TargetModel: "test-model1",
+		Body: &fwkrh.InferenceRequestBody{
+			ChatCompletions: &fwkrh.ChatCompletionsRequest{
+				Messages: []fwkrh.Message{
+					{
+						Role: "user",
+						Content: fwkrh.Content{
+							Structured: []fwkrh.ContentBlock{
+								{Type: "text", Text: ""},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_ = p.PrepareRequestData(context.Background(), req1, endpoints)
+	state1, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req1.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
+	initialHashCount := len(state1.PrefixHashes)
+	assert.Greater(t, initialHashCount, 0)
+
+	schedulingResult := &fwksched.SchedulingResult{
+		PrimaryProfileName: "default",
+		ProfileResults: map[string]*fwksched.ProfileRunResult{
+			"default": {TargetEndpoints: []fwksched.Endpoint{endpoint1}},
+		},
+	}
+	p.PreRequest(context.Background(), req1, schedulingResult)
+	p.wg.Wait()
+
+	req2 := &fwksched.InferenceRequest{
+		RequestId:   uuid.NewString(),
+		TargetModel: "test-model1",
+		Body: &fwkrh.InferenceRequestBody{
+			ChatCompletions: &fwkrh.ChatCompletionsRequest{
+				Messages: []fwkrh.Message{
+					{
+						Role: "user",
+						Content: fwkrh.Content{
+							Structured: []fwkrh.ContentBlock{
+								{Type: "text", Text: ""},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample2.jpg"}},
+							},
+						},
+					},
+					{Role: "assistant", Content: fwkrh.Content{Raw: "This is a sample image."}},
+					{Role: "user", Content: fwkrh.Content{Raw: "What else do you see?"}},
+				},
+			},
+		},
+	}
+	_ = p.PrepareRequestData(context.Background(), req2, endpoints)
+	state2, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req2.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
+	extendedHashCount := len(state2.PrefixHashes)
+	assert.Greater(t, extendedHashCount, initialHashCount)
+
+	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
+	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
+	assert.Greater(t, prefixInfo.MatchBlocks(), 0, "should have some prefix cache hit")
+	assert.Equal(t, extendedHashCount, prefixInfo.TotalBlocks())
+}
+
 func TestPrefixPluginAutoTune(t *testing.T) {
 	podName := "pod-autotune"
 	endpoint := fwksched.NewEndpoint(&fwkdl.EndpointMetadata{NamespacedName: k8stypes.NamespacedName{Name: podName}},

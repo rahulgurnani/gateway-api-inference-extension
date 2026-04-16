@@ -134,6 +134,48 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 			},
 		},
 		{
+			name: "Long Google Storage URL",
+			request: &scheduling.InferenceRequest{
+				Body: &requesthandling.InferenceRequestBody{
+					ChatCompletions: &requesthandling.ChatCompletionsRequest{
+						Messages: []requesthandling.Message{
+							{
+								Role: "user",
+								Content: requesthandling.Content{
+									Structured: []requesthandling.ContentBlock{
+										{Type: "text", Text: "Analyze this image:"},
+										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"}},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			verify: func(t *testing.T, got []byte) {
+				var combined [][]string
+				if err := json.Unmarshal(got, &combined); err != nil {
+					t.Fatalf("Failed to unmarshal: %v", err)
+				}
+				if len(combined) != 1 {
+					t.Fatalf("Expected 1 element, got %d", len(combined))
+				}
+				msg := combined[0]
+				if len(msg) != 3 {
+					t.Fatalf("Expected 3 elements in message, got %d", len(msg))
+				}
+				if msg[0] != "user" {
+					t.Errorf("Expected 'user', got %s", msg[0])
+				}
+				if msg[1] != "Analyze this image:" {
+					t.Errorf("Expected 'Analyze this image:', got %s", msg[1])
+				}
+				if len(msg[2]) != 64 {
+					t.Errorf("Expected 64-char hash, got length %d", len(msg[2]))
+				}
+			},
+		},
+		{
 			name: "Only image content",
 			request: &scheduling.InferenceRequest{
 				Body: &requesthandling.InferenceRequestBody{
