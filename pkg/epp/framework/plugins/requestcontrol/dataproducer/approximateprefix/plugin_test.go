@@ -372,7 +372,6 @@ func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 	assert.Equal(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks(), "URL-specific blocks should match")
 }
 
-
 func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T) {
 	config := config{
 		BlockSizeTokens:        8,

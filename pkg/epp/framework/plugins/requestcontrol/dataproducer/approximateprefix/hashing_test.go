@@ -8,8 +8,6 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
-
-
 func TestHashMultimodalContent(t *testing.T) {
 	tests := []struct {
 		name    string

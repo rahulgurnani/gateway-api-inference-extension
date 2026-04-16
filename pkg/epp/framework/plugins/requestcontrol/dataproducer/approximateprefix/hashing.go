@@ -190,7 +190,7 @@ func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 		}
 		combined = append(combined, map[string]interface{}{"input": request.Body.Responses.Input})
 		return json.Marshal(combined)
-		
+
 	case request.Body.ChatCompletions != nil:
 		res, err := parseChatCompletions(request.Body.ChatCompletions.Messages)
 		if err != nil {
