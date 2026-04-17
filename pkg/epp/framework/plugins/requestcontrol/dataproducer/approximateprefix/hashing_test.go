@@ -26,46 +26,7 @@ import (
 
 const userRole = "user"
 
-func TestHashMultimodalContent(t *testing.T) {
-	tests := []struct {
-		name    string
-		block   requesthandling.ContentBlock
-		wantErr bool
-	}{
-		{
-			name: "Image block",
-			block: requesthandling.ContentBlock{
-				Type: imageURLType,
-				ImageURL: requesthandling.ImageBlock{
-					Url: "data:image/png;base64,...",
-				},
-			},
-		},
-		{
-			name: "Text block",
-			block: requesthandling.ContentBlock{
-				Type: "text",
-				Text: "Hello",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := hashMultimodalContent(tt.block)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("hashMultimodalContent() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got == "" && !tt.wantErr {
-				t.Errorf("hashMultimodalContent() got empty string")
-			}
-			if len(got) != 16 && !tt.wantErr {
-				t.Errorf("hashMultimodalContent() got length %d, want 16", len(got))
-			}
-		})
-	}
-}
+const longURL = "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"
 
 func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 	tests := []struct {
@@ -148,8 +109,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if blocks[0].Text != "Describe:" {
 					t.Errorf("Expected 'Describe:', got %q", blocks[0].Text)
 				}
-				if len(blocks[1].ImageURL.Url) != 16 {
-					t.Errorf("Expected 16-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
+				if blocks[1].ImageURL.Url != "url1" {
+					t.Errorf("Expected 'url1', got %q", blocks[1].ImageURL.Url)
 				}
 			},
 		},
@@ -165,7 +126,7 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Analyze this image:"},
 										{Type: imageURLType,
-											ImageURL: requesthandling.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"}},
+											ImageURL: requesthandling.ImageBlock{Url: longURL}},
 									},
 								},
 							},
@@ -191,8 +152,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if blocks[0].Text != "Analyze this image:" {
 					t.Errorf("Expected 'Analyze this image:', got %q", blocks[0].Text)
 				}
-				if len(blocks[1].ImageURL.Url) != 16 {
-					t.Errorf("Expected 16-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
+				if blocks[1].ImageURL.Url != longURL {
+					t.Errorf("Expected %q, got %q", longURL, blocks[1].ImageURL.Url)
 				}
 			},
 		},
@@ -229,13 +190,11 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if len(blocks) != 2 {
 					t.Fatalf("Expected 2 blocks, got %d", len(blocks))
 				}
-				for i, block := range blocks {
-					if len(block.ImageURL.Url) != 16 {
-						t.Errorf("Block %d: expected 16-char hash URL, got length %d", i, len(block.ImageURL.Url))
-					}
+				if blocks[0].ImageURL.Url != "url1" {
+					t.Errorf("Block 0: expected 'url1', got %q", blocks[0].ImageURL.Url)
 				}
-				if blocks[0].ImageURL.Url == blocks[1].ImageURL.Url {
-					t.Errorf("Hashes for different URLs should be different")
+				if blocks[1].ImageURL.Url != "url2" {
+					t.Errorf("Block 1: expected 'url2', got %q", blocks[1].ImageURL.Url)
 				}
 			},
 		},

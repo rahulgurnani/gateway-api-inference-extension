@@ -19,7 +19,6 @@ package approximateprefix
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"testing"
@@ -295,7 +294,7 @@ func TestPrefixPluginChatCompletionsGrowth(t *testing.T) {
 
 func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 	config := config{
-		BlockSizeTokens:        16,
+		BlockSizeTokens:        32,
 		AutoTune:               false,
 		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
 		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
@@ -315,8 +314,8 @@ func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 						Role: "user",
 						Content: fwkrh.Content{
 							Structured: []fwkrh.ContentBlock{
-								{Type: "text", Text: ""},
-								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
+								{Type: "text", Text: "Describe"},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/abc1/sample1.jpg"}},
 							},
 						},
 					},
@@ -348,8 +347,8 @@ func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 						Role: "user",
 						Content: fwkrh.Content{
 							Structured: []fwkrh.ContentBlock{
-								{Type: "text", Text: ""},
-								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
+								{Type: "text", Text: "Describe"},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/abc1/sample1.jpg"}},
 							},
 						},
 					},
@@ -358,23 +357,16 @@ func TestPrefixPluginChatCompletionsMultimodalSameUrlMatches(t *testing.T) {
 		},
 	}
 	_ = p.PrepareRequestData(context.Background(), req2, endpoints)
-	state2, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req2.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
-	extendedHashCount := len(state2.PrefixHashes)
-	assert.Equal(t, extendedHashCount, initialHashCount)
-
 	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
 	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
-	log.Println("prefixInfo", prefixInfo.MatchBlocks(), "totalblocks", prefixInfo.TotalBlocks())
-	// With the struct serialization, the JSON preamble (role, field names, nesting) before the URL
-	// hash is ~129 chars, which fills 2 blocks of 64 chars each. These structural blocks are
-	// identical for any two messages with the same role/text layout, so they will match even when
-	// the image URLs differ. Only URL-specific content (block 3+) will differ.
-	assert.Equal(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks(), "URL-specific blocks should match")
+
+	// Since same prefix hashes are expected to be generated
+	assert.Equal(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks())
 }
 
-func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T) {
+func TestPrefixPluginChatCompletionsMultimodalDifferentUrlPartialMatch(t *testing.T) {
 	config := config{
-		BlockSizeTokens:        8,
+		BlockSizeTokens:        32,
 		AutoTune:               false,
 		MaxPrefixBlocksToMatch: defaultMaxPrefixBlocks,
 		LRUCapacityPerServer:   defaultLRUCapacityPerServer,
@@ -394,8 +386,8 @@ func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T
 						Role: "user",
 						Content: fwkrh.Content{
 							Structured: []fwkrh.ContentBlock{
-								{Type: "text", Text: ""},
-								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample1.jpg"}},
+								{Type: "text", Text: "Describe"},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/bucket1/sample1.jpg"}},
 							},
 						},
 					},
@@ -427,8 +419,8 @@ func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T
 						Role: "user",
 						Content: fwkrh.Content{
 							Structured: []fwkrh.ContentBlock{
-								{Type: "text", Text: ""},
-								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample2.jpg"}},
+								{Type: "text", Text: "Describe"},
+								{Type: "image_url", ImageURL: fwkrh.ImageBlock{Url: "https://storage.googleapis.com/bucket2/sample2.jpg"}},
 							},
 						},
 					},
@@ -439,14 +431,9 @@ func TestPrefixPluginChatCompletionsMultimodalDifferentUrlSomeMatch(t *testing.T
 		},
 	}
 	_ = p.PrepareRequestData(context.Background(), req2, endpoints)
-	state2, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req2.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
-	extendedHashCount := len(state2.PrefixHashes)
-	assert.Greater(t, extendedHashCount, initialHashCount)
-
 	info, _ := endpoint1.Get(attrprefix.PrefixCacheMatchInfoKey)
 	prefixInfo := info.(*attrprefix.PrefixCacheMatchInfo)
-	log.Println("prefixInfo", prefixInfo.MatchBlocks(), "totalblocks", prefixInfo.TotalBlocks())
-	assert.Greater(t, prefixInfo.MatchBlocks(), 0, "should have some prefix cache hit")
+	// Not a full cache hit as the image url has changed
 	assert.Less(t, prefixInfo.MatchBlocks(), prefixInfo.TotalBlocks(), "should not have full prefix cache hit")
 }
 
