@@ -64,12 +64,13 @@ func ValidateAndOrderDataDependencies(plugins []plugin.Plugin) ([]string, error)
 
 // CreateMissingDataProducers inspects the set of already-configured plugins,
 // finds data keys that are consumed but not yet produced, and auto-instantiates
-// DataProducer plugins from dataProducerRegistry that would satisfy those gaps.
+// the default DataProducer plugin for each such key.
+// defaultProducerRegistry maps a data key to the plugin type that is its default producer.
+// factoryRegistry maps a plugin type to its factory function.
 // Each missing producer is created with its plugin type used as its instance name
 // and parameters taken from the plugin spec that consumes the data.
-// Only registry entries whose type is not already present in plugins are considered.
-// dataProducerRegistry should contain only DataProducer factories (see dataProducerFactories in runner.go).
-func CreateMissingDataProducers(plugins []plugin.Plugin, dataProducerRegistry map[string]plugin.FactoryFunc, handle plugin.Handle, pluginSpecs []configapi.PluginSpec) ([]plugin.Plugin, error) {
+// Only entries whose type is not already present in plugins are considered.
+func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry map[string]string, factoryRegistry map[string]plugin.FactoryFunc, handle plugin.Handle, pluginSpecs []configapi.PluginSpec) ([]plugin.Plugin, error) {
 	// Collect plugin types already present so we don't create duplicates.
 	existingTypes := make(map[string]bool)
 	for _, p := range plugins {
@@ -106,16 +107,25 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, dataProducerRegistry ma
 		return nil, nil
 	}
 
-	// For each DataProducer type not already present, instantiate it and check
-	// whether it covers any of the missing keys.
-	var result []plugin.Plugin
-	for pluginType, factory := range dataProducerRegistry {
-		if existingTypes[pluginType] {
+	// For each missing key, look up its default producer type and collect unique types to instantiate.
+	// A single producer type may satisfy multiple missing keys; deduplicate by type.
+	typeToMissingKey := make(map[string]string)
+	for key := range missingKeys {
+		pluginType, ok := defaultProducerRegistry[key]
+		if !ok || existingTypes[pluginType] {
 			continue
 		}
+		if _, already := typeToMissingKey[pluginType]; !already {
+			typeToMissingKey[pluginType] = key
+		}
+	}
 
-		// Find parameters from the consumer that needs this producer's data.
-		var params json.RawMessage
+	var result []plugin.Plugin
+	for pluginType, missingKey := range typeToMissingKey {
+		factory, ok := factoryRegistry[pluginType]
+		if !ok {
+			continue
+		}
 
 		candidate, err := factory(pluginType, nil, handle)
 		if err != nil {
@@ -126,34 +136,18 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, dataProducerRegistry ma
 			continue
 		}
 
-		produces := producer.Produces()
-		needed := false
-		for key := range produces {
-			if missingKeys[key] {
-				needed = true
-				break
-			}
-		}
-		if !needed {
-			continue
-		}
-
-		// Now that we know it's needed, let's find the parameters from the consumer.
-		for key := range produces {
-			if consumer, ok := missingKeyToConsumer[key]; ok {
-				for _, spec := range pluginSpecs {
-					if spec.Name == consumer.TypedName().Name || (spec.Name == "" && spec.Type == consumer.TypedName().Type) {
-						params = spec.Parameters
-						break
-					}
-				}
-				if params != nil {
-					break // Use the first one found
+		// Find parameters from the consumer of the missing key.
+		var params json.RawMessage
+		if consumer, ok := missingKeyToConsumer[missingKey]; ok {
+			for _, spec := range pluginSpecs {
+				if spec.Name == consumer.TypedName().Name || (spec.Name == "" && spec.Type == consumer.TypedName().Type) {
+					params = spec.Parameters
+					break
 				}
 			}
 		}
 
-		// If we found parameters, we re-instantiate the plugin with the correct parameters.
+		// Re-instantiate with the consumer's parameters if found.
 		if params != nil {
 			candidate, err = factory(pluginType, params, handle)
 			if err != nil {
@@ -163,7 +157,7 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, dataProducerRegistry ma
 
 		result = append(result, candidate)
 		existingTypes[pluginType] = true
-		for key := range produces {
+		for key := range producer.Produces() {
 			producedKeys[key] = true
 			delete(missingKeys, key)
 		}

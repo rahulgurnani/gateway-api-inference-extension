@@ -317,20 +317,22 @@ func TestCreateMissingDataProducers(t *testing.T) {
 	handle := fwkplugin.NewEppHandle(context.Background(), func() []k8stypes.NamespacedName { return nil })
 
 	testCases := []struct {
-		name            string
-		existingPlugins []fwkplugin.Plugin
-		registry        map[string]fwkplugin.FactoryFunc
-		pluginSpecs     []configapi.PluginSpec
-		wantTypes       []string // TypedName.Type of expected auto-created producers
-		wantErr         bool
+		name                    string
+		existingPlugins         []fwkplugin.Plugin
+		defaultProducerRegistry map[string]string
+		factoryRegistry         map[string]fwkplugin.FactoryFunc
+		pluginSpecs             []configapi.PluginSpec
+		wantTypes               []string // TypedName.Type of expected auto-created producers
+		wantErr                 bool
 	}{
 		{
 			name: "creates producer for missing consumed key",
 			existingPlugins: []fwkplugin.Plugin{
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry:  map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
-			wantTypes: []string{producerTypeA},
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			wantTypes:               []string{producerTypeA},
 		},
 		{
 			name: "no missing keys - nothing created",
@@ -338,8 +340,9 @@ func TestCreateMissingDataProducers(t *testing.T) {
 				&mockPrepareRequestDataP{name: "existing-a", produces: map[string]any{keyA: nil}},
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry:  map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
-			wantTypes: nil,
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			wantTypes:               nil,
 		},
 		{
 			name: "producer already present by type - not duplicated",
@@ -348,48 +351,54 @@ func TestCreateMissingDataProducers(t *testing.T) {
 				&typedMockPlugin{typeName: producerTypeA, produces: map[string]any{keyA: nil}},
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry:  map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
-			wantTypes: nil,
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			wantTypes:               nil,
 		},
 		{
 			name: "failing factory returns error",
 			existingPlugins: []fwkplugin.Plugin{
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry: map[string]fwkplugin.FactoryFunc{failingType: failingFactory},
-			wantErr:  true,
+			defaultProducerRegistry: map[string]string{keyA: failingType},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{failingType: failingFactory},
+			wantErr:                 true,
 		},
 		{
 			name: "non-ProducerPlugin registry entry is skipped",
 			existingPlugins: []fwkplugin.Plugin{
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry:  map[string]fwkplugin.FactoryFunc{nonProducerType: nonProducerFactory},
-			wantTypes: nil,
+			defaultProducerRegistry: map[string]string{keyA: nonProducerType},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{nonProducerType: nonProducerFactory},
+			wantTypes:               nil,
 		},
 		{
 			name: "only relevant producer is created among multiple registry entries",
 			existingPlugins: []fwkplugin.Plugin{
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry: map[string]fwkplugin.FactoryFunc{
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA, keyB: producerTypeB},
+			factoryRegistry: map[string]fwkplugin.FactoryFunc{
 				producerTypeA: producerAFactory,
 				producerTypeB: producerBFactory,
 			},
 			wantTypes: []string{producerTypeA},
 		},
 		{
-			name:            "no consumers - nothing created",
-			existingPlugins: []fwkplugin.Plugin{},
-			registry:        map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
-			wantTypes:       nil,
+			name:                    "no consumers - nothing created",
+			existingPlugins:         []fwkplugin.Plugin{},
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			wantTypes:               nil,
 		},
 		{
 			name: "creates producer with parameters from consumer",
 			existingPlugins: []fwkplugin.Plugin{
 				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
 			},
-			registry: map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
+			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
+			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
 			pluginSpecs: []configapi.PluginSpec{
 				{Name: "MockSchedulingPlugin", Type: "mock", Parameters: json.RawMessage(`{"param":"value"}`)},
 			},
@@ -399,7 +408,7 @@ func TestCreateMissingDataProducers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.registry, handle, tc.pluginSpecs)
+			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.defaultProducerRegistry, tc.factoryRegistry, handle, tc.pluginSpecs)
 
 			if tc.wantErr {
 				assert.Error(t, err)
