@@ -101,17 +101,17 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 
 	// For each missing key, look up its default producer type and collect unique types to instantiate.
 	// A single producer type may satisfy multiple missing keys; deduplicate by type.
-	neededTypes := make(map[string]bool)
+	neededTypes := make(map[string]string)
 	for key := range missingKeys {
 		pluginType, ok := defaultProducerRegistry[key]
 		if !ok || existingTypes[pluginType] {
 			continue
 		}
-		neededTypes[pluginType] = true
+		neededTypes[pluginType] = key
 	}
 
-	var result []plugin.Plugin
-	for pluginType := range neededTypes {
+	var plgns []plugin.Plugin
+	for pluginType, registeredKey := range neededTypes {
 		factory, ok := factoryRegistry[pluginType]
 		if !ok {
 			continue
@@ -122,19 +122,20 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 			return nil, fmt.Errorf("failed to instantiate data producer %q: %w", pluginType, err)
 		}
 		producer, ok := candidate.(plugin.ProducerPlugin)
-		if !ok {
+		if !ok || existingTypes[pluginType] {
 			continue
 		}
 
-		result = append(result, candidate)
-		existingTypes[pluginType] = true
-		for key := range producer.Produces() {
-			producedKeys[key] = true
-			delete(missingKeys, key)
+		// Validate that the instantiated producer produces the registered key.
+		if _, ok := producer.Produces()[registeredKey]; !ok {
+			return nil, fmt.Errorf("instantiated default data producer %q does not produce registered key %q", pluginType, registeredKey)
 		}
+
+		plgns = append(plgns, candidate)
+		existingTypes[pluginType] = true
 	}
 
-	return result, nil
+	return plgns, nil
 }
 
 // Define constants for layer execution order. Lower value means earlier execution.
