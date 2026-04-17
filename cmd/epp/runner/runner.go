@@ -470,17 +470,21 @@ func (r *Runner) registerInTreePlugins() {
 	fwkplugin.Register(edf.EDFOrderingPolicyType, edf.EDFOrderingPolicyFactory)
 	fwkplugin.Register(slodeadline.SLODeadlineOrderingPolicyType, slodeadline.SLODeadlineOrderingPolicyFactory)
 	fwkplugin.Register(usagelimits.StaticUsageLimitPolicyType, usagelimits.StaticPolicyFactory)
+	
+	// Register Request level data producer plugins
+	for pluginName, factory := range dataProducerFactories() {
+		fwkplugin.Register(pluginName, factory)
+	}
+
 	// Latency predictor plugins
-	fwkplugin.Register(latencyproducer.LatencyDataProviderPluginType, latencyproducer.PredictedLatencyFactory)
 	fwkplugin.Register(latencyslo.LatencyAdmissionPluginType, latencyslo.LatencyAdmissionFactory)
-	// Request level data producer plugins
-	fwkplugin.Register(reqdataprodprefix.ApproxPrefixCachePluginType, reqdataprodprefix.ApproxPrefixCacheFactory)
+	
+
 	// Latency scoring and filtering plugins
 	fwkplugin.Register(prefixcacheaffinity.PluginType, prefixcacheaffinity.Factory)
 	fwkplugin.Register(sloheadroomtier.PluginType, sloheadroomtier.Factory)
 	fwkplugin.Register(latencyscorer.LatencyScorerType, latencyscorer.Factory)
-	// In-flight load producer
-	fwkplugin.Register(inflightload.InFlightLoadProducerType, inflightload.InFlightLoadProducerFactory)
+	
 	// register filter for test purpose only (used in conformance tests)
 	fwkplugin.Register(testfilter.HeaderBasedTestingFilterType, testfilter.HeaderBasedTestingFilterFactory)
 	// register response received plugin for test purpose only (used in conformance tests)
