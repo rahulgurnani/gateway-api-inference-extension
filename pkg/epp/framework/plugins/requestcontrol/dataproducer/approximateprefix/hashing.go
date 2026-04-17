@@ -30,6 +30,12 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
+const (
+	imageURLType   = "image_url"
+	videoURLType   = "video_url"
+	inputAudioType = "input_audio"
+)
+
 // hashPrompt divides the prompt into blocks and calculates a prefix cache hash for each block.
 // The first block hash includes the model name and cache salt (if provided).
 // For subsequent blocks, the hash is calculated as: hash(block i content, hash(i-1)).
@@ -90,7 +96,7 @@ func hashPrompt(ctx context.Context, request *scheduling.InferenceRequest, block
 	// 2. Process any remaining bytes as a partial block
 	if i < len(userInput) {
 		h.Reset()
-		
+
 		_, _ = h.Write(userInput[i:])
 		_, _ = h.Write(toBytes(prevBlockHash))
 		res = append(res, blockHash(h.Sum64()))
@@ -109,11 +115,11 @@ func toBytes(i blockHash) []byte {
 func hashMultimodalContent(block requesthandling.ContentBlock) (string, error) {
 	var dataToHash string
 	switch block.Type {
-	case "image_url":
+	case imageURLType:
 		dataToHash = block.ImageURL.Url
-	case "video_url":
+	case videoURLType:
 		dataToHash = block.VideoURL.Url
-	case "input_audio":
+	case inputAudioType:
 		dataToHash = block.InputAudio.Data
 	default:
 		b, err := json.Marshal(block)
@@ -134,7 +140,7 @@ func hashMultimodalContent(block requesthandling.ContentBlock) (string, error) {
 }
 
 func isMultimodalContentType(contentType string) bool {
-	return contentType == "image_url" || contentType == "video_url" || contentType == "input_audio"
+	return contentType == imageURLType || contentType == videoURLType || contentType == inputAudioType
 }
 
 // replaceMultimodalURLsInBlocks returns a copy of blocks with multimodal URL/data values replaced
@@ -152,11 +158,11 @@ func replaceMultimodalURLsInBlocks(blocks []requesthandling.ContentBlock) ([]req
 		}
 		result[i] = requesthandling.ContentBlock{Type: block.Type}
 		switch block.Type {
-		case "image_url":
+		case imageURLType:
 			result[i].ImageURL = requesthandling.ImageBlock{Url: hash}
-		case "video_url":
+		case videoURLType:
 			result[i].VideoURL = requesthandling.VideoBlock{Url: hash}
-		case "input_audio":
+		case inputAudioType:
 			result[i].InputAudio = requesthandling.AudioBlock{Data: hash, Format: block.InputAudio.Format}
 		}
 	}

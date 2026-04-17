@@ -1,3 +1,19 @@
+/*
+Copyright 2026 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package approximateprefix
 
 import (
@@ -8,6 +24,8 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
+const userRole = "user"
+
 func TestHashMultimodalContent(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -17,7 +35,7 @@ func TestHashMultimodalContent(t *testing.T) {
 		{
 			name: "Image block",
 			block: requesthandling.ContentBlock{
-				Type: "image_url",
+				Type: imageURLType,
 				ImageURL: requesthandling.ImageBlock{
 					Url: "data:image/png;base64,...",
 				},
@@ -63,7 +81,7 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
-								Role: "user",
+								Role: userRole,
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Hello"},
@@ -83,8 +101,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if len(messages) != 1 {
 					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				if messages[0].Role != "user" {
-					t.Errorf("Expected role 'user', got %q", messages[0].Role)
+				if messages[0].Role != userRole {
+					t.Errorf("Expected role %q, got %q", userRole, messages[0].Role)
 				}
 				blocks := messages[0].Content.Structured
 				if len(blocks) != 2 || blocks[0].Text != "Hello" || blocks[1].Text != "World" {
@@ -99,11 +117,12 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
-								Role: "user",
+								Role: userRole,
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Describe:"},
-										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "url1"}},
+										{Type: imageURLType,
+											ImageURL: requesthandling.ImageBlock{Url: "url1"}},
 									},
 								},
 							},
@@ -119,8 +138,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if len(messages) != 1 {
 					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				if messages[0].Role != "user" {
-					t.Errorf("Expected role 'user', got %q", messages[0].Role)
+				if messages[0].Role != userRole {
+					t.Errorf("Expected role %q, got %q", userRole, messages[0].Role)
 				}
 				blocks := messages[0].Content.Structured
 				if len(blocks) != 2 {
@@ -141,11 +160,12 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
-								Role: "user",
+								Role: userRole,
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
 										{Type: "text", Text: "Analyze this image:"},
-										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"}},
+										{Type: imageURLType,
+											ImageURL: requesthandling.ImageBlock{Url: "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"}},
 									},
 								},
 							},
@@ -161,8 +181,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if len(messages) != 1 {
 					t.Fatalf("Expected 1 message, got %d", len(messages))
 				}
-				if messages[0].Role != "user" {
-					t.Errorf("Expected role 'user', got %q", messages[0].Role)
+				if messages[0].Role != userRole {
+					t.Errorf("Expected role %q, got %q", userRole, messages[0].Role)
 				}
 				blocks := messages[0].Content.Structured
 				if len(blocks) != 2 {
@@ -183,11 +203,13 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					ChatCompletions: &requesthandling.ChatCompletionsRequest{
 						Messages: []requesthandling.Message{
 							{
-								Role: "user",
+								Role: userRole,
 								Content: requesthandling.Content{
 									Structured: []requesthandling.ContentBlock{
-										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "url1"}},
-										{Type: "image_url", ImageURL: requesthandling.ImageBlock{Url: "url2"}},
+										{Type: imageURLType,
+											ImageURL: requesthandling.ImageBlock{Url: "url1"}},
+										{Type: imageURLType,
+											ImageURL: requesthandling.ImageBlock{Url: "url2"}},
 									},
 								},
 							},
