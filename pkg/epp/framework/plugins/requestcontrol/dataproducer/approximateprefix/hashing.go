@@ -103,14 +103,12 @@ func toBytes(i blockHash) []byte {
 	return bytes
 }
 
-
 func getUserInputBytes(request *scheduling.InferenceRequest) ([]byte, error) {
 	switch {
 	case request.Body.Conversations != nil:
 		return json.Marshal(request.Body.Conversations.Items)
 
 	case request.Body.Responses != nil:
-		// TODO(#2172): Parse multimodal content in responses API as well and hash multimodal URLs.
 		var combined []map[string]interface{}
 		if request.Body.Responses.Instructions != nil {
 			combined = append(combined, map[string]interface{}{"instructions": request.Body.Responses.Instructions})
