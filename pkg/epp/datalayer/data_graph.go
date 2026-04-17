@@ -116,7 +116,7 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 		if !ok {
 			continue
 		}
-
+		// pass nil params as this is default instantiation.
 		candidate, err := factory(pluginType, nil, handle)
 		if err != nil {
 			return nil, fmt.Errorf("failed to instantiate data producer %q: %w", pluginType, err)
