@@ -17,13 +17,11 @@ limitations under the License.
 package datalayer
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"slices"
 
-	configapi "sigs.k8s.io/gateway-api-inference-extension/apix/config/v1alpha1"
 	fwkfc "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/flowcontrol"
 	fwkrq "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/requestcontrol"
 	fwksch "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
@@ -64,13 +62,11 @@ func ValidateAndOrderDataDependencies(plugins []plugin.Plugin) ([]string, error)
 
 // CreateMissingDataProducers inspects the set of already-configured plugins,
 // finds data keys that are consumed but not yet produced, and auto-instantiates
-// the default DataProducer plugin for each such key.
+// the default DataProducer plugin for each such key using nil parameters.
 // defaultProducerRegistry maps a data key to the plugin type that is its default producer.
 // factoryRegistry maps a plugin type to its factory function.
-// Each missing producer is created with its plugin type used as its instance name
-// and parameters taken from the plugin spec that consumes the data.
 // Only entries whose type is not already present in plugins are considered.
-func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry map[string]string, factoryRegistry map[string]plugin.FactoryFunc, handle plugin.Handle, pluginSpecs []configapi.PluginSpec) ([]plugin.Plugin, error) {
+func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry map[string]string, factoryRegistry map[string]plugin.FactoryFunc, handle plugin.Handle) ([]plugin.Plugin, error) {
 	// Collect plugin types already present so we don't create duplicates.
 	existingTypes := make(map[string]bool)
 	for _, p := range plugins {
@@ -89,15 +85,11 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 
 	// Build the set of keys that are consumed but not yet produced.
 	missingKeys := make(map[string]bool)
-	missingKeyToConsumer := make(map[string]plugin.Plugin)
 	for _, p := range plugins {
 		if consumer, ok := p.(plugin.ConsumerPlugin); ok {
 			for key := range consumer.Consumes() {
 				if !producedKeys[key] {
 					missingKeys[key] = true
-					if _, ok := missingKeyToConsumer[key]; !ok {
-						missingKeyToConsumer[key] = p
-					}
 				}
 			}
 		}
@@ -109,19 +101,17 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 
 	// For each missing key, look up its default producer type and collect unique types to instantiate.
 	// A single producer type may satisfy multiple missing keys; deduplicate by type.
-	typeToMissingKey := make(map[string]string)
+	neededTypes := make(map[string]bool)
 	for key := range missingKeys {
 		pluginType, ok := defaultProducerRegistry[key]
 		if !ok || existingTypes[pluginType] {
 			continue
 		}
-		if _, already := typeToMissingKey[pluginType]; !already {
-			typeToMissingKey[pluginType] = key
-		}
+		neededTypes[pluginType] = true
 	}
 
 	var result []plugin.Plugin
-	for pluginType, missingKey := range typeToMissingKey {
+	for pluginType := range neededTypes {
 		factory, ok := factoryRegistry[pluginType]
 		if !ok {
 			continue
@@ -134,25 +124,6 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, defaultProducerRegistry
 		producer, ok := candidate.(plugin.ProducerPlugin)
 		if !ok {
 			continue
-		}
-
-		// Find parameters from the consumer of the missing key.
-		var params json.RawMessage
-		if consumer, ok := missingKeyToConsumer[missingKey]; ok {
-			for _, spec := range pluginSpecs {
-				if spec.Name == consumer.TypedName().Name || (spec.Name == "" && spec.Type == consumer.TypedName().Type) {
-					params = spec.Parameters
-					break
-				}
-			}
-		}
-
-		// Re-instantiate with the consumer's parameters if found.
-		if params != nil {
-			candidate, err = factory(pluginType, params, handle)
-			if err != nil {
-				return nil, fmt.Errorf("failed to instantiate data producer %q with parameters: %w", pluginType, err)
-			}
 		}
 
 		result = append(result, candidate)

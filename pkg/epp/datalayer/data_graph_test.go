@@ -26,7 +26,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	configapi "sigs.k8s.io/gateway-api-inference-extension/apix/config/v1alpha1"
 	fwkdl "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/datalayer"
 	fwkfcmocks "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/flowcontrol/mocks"
 	fwkplugin "sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/plugin"
@@ -289,10 +288,7 @@ func TestCreateMissingDataProducers(t *testing.T) {
 
 	// A DataProducer that produces keyA.
 	producerTypeA := "producer-a"
-	producerAFactory := fwkplugin.FactoryFunc(func(name string, params json.RawMessage, handle fwkplugin.Handle) (fwkplugin.Plugin, error) {
-		if params != nil {
-			return &mockPrepareRequestDataP{name: name + "-with-params-" + string(params), produces: map[string]any{keyA: nil}}, nil
-		}
+	producerAFactory := fwkplugin.FactoryFunc(func(name string, _ json.RawMessage, handle fwkplugin.Handle) (fwkplugin.Plugin, error) {
 		return &mockPrepareRequestDataP{name: name, produces: map[string]any{keyA: nil}}, nil
 	})
 
@@ -321,7 +317,6 @@ func TestCreateMissingDataProducers(t *testing.T) {
 		existingPlugins         []fwkplugin.Plugin
 		defaultProducerRegistry map[string]string
 		factoryRegistry         map[string]fwkplugin.FactoryFunc
-		pluginSpecs             []configapi.PluginSpec
 		wantTypes               []string // TypedName.Type of expected auto-created producers
 		wantErr                 bool
 	}{
@@ -392,23 +387,11 @@ func TestCreateMissingDataProducers(t *testing.T) {
 			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
 			wantTypes:               nil,
 		},
-		{
-			name: "creates producer with parameters from consumer",
-			existingPlugins: []fwkplugin.Plugin{
-				&MockSchedulingPlugin{consumes: map[string]any{keyA: nil}},
-			},
-			defaultProducerRegistry: map[string]string{keyA: producerTypeA},
-			factoryRegistry:         map[string]fwkplugin.FactoryFunc{producerTypeA: producerAFactory},
-			pluginSpecs: []configapi.PluginSpec{
-				{Name: "MockSchedulingPlugin", Type: "mock", Parameters: json.RawMessage(`{"param":"value"}`)},
-			},
-			wantTypes: []string{producerTypeA + "-with-params-{\"param\":\"value\"}"},
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.defaultProducerRegistry, tc.factoryRegistry, handle, tc.pluginSpecs)
+			result, err := CreateMissingDataProducers(tc.existingPlugins, tc.defaultProducerRegistry, tc.factoryRegistry, handle)
 
 			if tc.wantErr {
 				assert.Error(t, err)
