@@ -42,8 +42,8 @@ func TestHashMultimodalContent(t *testing.T) {
 			if got == "" && !tt.wantErr {
 				t.Errorf("hashMultimodalContent() got empty string")
 			}
-			if len(got) != 128 && !tt.wantErr {
-				t.Errorf("hashMultimodalContent() got length %d, want 128", len(got))
+			if len(got) != 16 && !tt.wantErr {
+				t.Errorf("hashMultimodalContent() got length %d, want 16", len(got))
 			}
 		})
 	}
@@ -129,8 +129,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if blocks[0].Text != "Describe:" {
 					t.Errorf("Expected 'Describe:', got %q", blocks[0].Text)
 				}
-				if len(blocks[1].ImageURL.Url) != 128 {
-					t.Errorf("Expected 128-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
+				if len(blocks[1].ImageURL.Url) != 16 {
+					t.Errorf("Expected 16-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
 				}
 			},
 		},
@@ -171,8 +171,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 				if blocks[0].Text != "Analyze this image:" {
 					t.Errorf("Expected 'Analyze this image:', got %q", blocks[0].Text)
 				}
-				if len(blocks[1].ImageURL.Url) != 128 {
-					t.Errorf("Expected 128-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
+				if len(blocks[1].ImageURL.Url) != 16 {
+					t.Errorf("Expected 16-char hash URL, got length %d", len(blocks[1].ImageURL.Url))
 				}
 			},
 		},
@@ -208,8 +208,8 @@ func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 					t.Fatalf("Expected 2 blocks, got %d", len(blocks))
 				}
 				for i, block := range blocks {
-					if len(block.ImageURL.Url) != 128 {
-						t.Errorf("Block %d: expected 128-char hash URL, got length %d", i, len(block.ImageURL.Url))
+					if len(block.ImageURL.Url) != 16 {
+						t.Errorf("Block %d: expected 16-char hash URL, got length %d", i, len(block.ImageURL.Url))
 					}
 				}
 				if blocks[0].ImageURL.Url == blocks[1].ImageURL.Url {

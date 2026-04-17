@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -78,13 +77,23 @@ func hashPrompt(ctx context.Context, request *scheduling.InferenceRequest, block
 	}
 
 	prevBlockHash := blockHash(h.Sum64())
-	for i := 0; i+cacheBlockSizeChars <= len(userInput); i += cacheBlockSizeChars {
+	i := 0
+	for ; i+cacheBlockSizeChars <= len(userInput); i += cacheBlockSizeChars {
 		h.Reset()
 		_, _ = h.Write(userInput[i : i+cacheBlockSizeChars])
 		_, _ = h.Write(toBytes(prevBlockHash))
 		res = append(res, blockHash(h.Sum64()))
 
 		prevBlockHash = res[len(res)-1]
+	}
+
+	// 2. Process any remaining bytes as a partial block
+	if i < len(userInput) {
+		h.Reset()
+		
+		_, _ = h.Write(userInput[i:])
+		_, _ = h.Write(toBytes(prevBlockHash))
+		res = append(res, blockHash(h.Sum64()))
 	}
 
 	return res
@@ -96,7 +105,7 @@ func toBytes(i blockHash) []byte {
 	return bytes
 }
 
-// hashMultimodalContent returns a 128-character hash of the multimodal data by repeating a 64-bit xxhash 8 times.
+// hashMultimodalContent returns a hash of the multimodal data.
 func hashMultimodalContent(block requesthandling.ContentBlock) (string, error) {
 	var dataToHash string
 	switch block.Type {
@@ -121,7 +130,7 @@ func hashMultimodalContent(block requesthandling.ContentBlock) (string, error) {
 	hashStr := hex.EncodeToString(out)
 	// max block size vLLM supports is 32 tokens. Each token is on average 4 chars. 4*32=128 characters.
 	// hashStr is 16 characters. 8 * 16 = 128 characters.
-	return strings.Repeat(hashStr, 8), nil
+	return hashStr, nil
 }
 
 func isMultimodalContentType(contentType string) bool {

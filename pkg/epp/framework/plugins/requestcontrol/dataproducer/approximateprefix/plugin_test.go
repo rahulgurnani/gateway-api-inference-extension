@@ -185,7 +185,7 @@ func TestPrefixPluginCompletion(t *testing.T) {
 	_ = p.PrepareRequestData(context.Background(), req1, endpoints)
 	state, _ := plugin.ReadPluginStateKey[*SchedulingContextState](p.PluginState(), req1.RequestId, plugin.StateKey(ApproxPrefixCachePluginType))
 	// Input size is 6, block size is 4, so 1 body block. Total hashes = 1 (model only is not a block)
-	assert.Equal(t, 1, len(state.PrefixHashes))
+	assert.Equal(t, 2, len(state.PrefixHashes))
 
 	// Simulate pod1 was picked and pod3 was picked as a prefill node.
 	schedulingResult := &fwksched.SchedulingResult{
