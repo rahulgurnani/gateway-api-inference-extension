@@ -24,9 +24,11 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
-const userRole = "user"
-
-const longURL = "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"
+const (
+	userRole     = "user"
+	longURL      = "https://storage.googleapis.com/averylargesizednameofabuckettostoreimages/sample52.jpg"
+	imageURLType = "image_url"
+)
 
 func TestGetUserInputBytes_ChatCompletions(t *testing.T) {
 	tests := []struct {

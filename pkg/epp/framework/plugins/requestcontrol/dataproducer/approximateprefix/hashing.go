@@ -28,12 +28,6 @@ import (
 	"sigs.k8s.io/gateway-api-inference-extension/pkg/epp/framework/interface/scheduling"
 )
 
-const (
-	imageURLType   = "image_url"
-	videoURLType   = "video_url"
-	inputAudioType = "input_audio"
-)
-
 // hashPrompt divides the prompt into blocks and calculates a prefix cache hash for each block.
 // The first block hash includes the model name and cache salt (if provided).
 // For subsequent blocks, the hash is calculated as: hash(block i content, hash(i-1)).
