@@ -110,7 +110,7 @@ func CreateMissingDataProducers(plugins []plugin.Plugin, dataProducerRegistry ma
 	// whether it covers any of the missing keys.
 	var result []plugin.Plugin
 	for pluginType, factory := range dataProducerRegistry {
-		if existingTypes[pluginType] || len(missingKeys) == 0 {
+		if existingTypes[pluginType] {
 			continue
 		}
 
