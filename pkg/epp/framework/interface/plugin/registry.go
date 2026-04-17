@@ -18,7 +18,6 @@ package plugin
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 // Factory is the definition of the factory functions that are used to instantiate plugins
@@ -36,9 +35,6 @@ func Register(pluginType string, factory FactoryFunc) {
 // auto-configuration alongside in-tree producers.
 func RegisterAsDefaultProducer(pluginType string, factory FactoryFunc, key string) {
 	Register(pluginType, factory)
-	if existing, ok := DefaultProducerRegistry[key]; ok {
-		panic(fmt.Sprintf("default producer for key %q already registered: %s", key, existing))
-	}
 	DefaultProducerRegistry[key] = pluginType
 }
 
