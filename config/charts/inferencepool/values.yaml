@@ -3,7 +3,7 @@ inferenceExtension:
   image:
     registry: us-central1-docker.pkg.dev/k8s-staging-images
     repository: gateway-api-inference-extension/epp
-    tag: main
+    tag: v1.4.0
     pullPolicy: Always
   extProcPort: 9002
   failureMode: "FailOpen"
@@ -39,7 +39,7 @@ inferenceExtension:
 
   flags:
     # Log verbosity
-    v: 1
+    v: 2
 
   affinity: {}
 

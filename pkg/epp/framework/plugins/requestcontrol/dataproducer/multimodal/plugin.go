@@ -140,7 +140,7 @@ func (p *MultimodalDataPlugin) PrepareRequestData(ctx context.Context, request *
 
 func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *attrmm.MultimodalItem {
 	logger := log.FromContext(ctx)
-	logger.V(logutil.DEBUG).Info("extractFromBlock: processing block", "type", block.Type)
+	logger.V(1).Info("extractFromBlock: processing block", "type", block.Type)
 	var data []byte
 	switch block.Type {
 	case "image_url":
@@ -152,18 +152,18 @@ func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *
 					if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 						data = d
 					} else {
-						logger.V(logutil.DEBUG).Info("extractFromBlock: failed to decode image_url base64", "err", err)
+						logger.V(1).Info("extractFromBlock: failed to decode image_url base64", "err", err)
 					}
 				}
 			}
 		} else {
-			logger.V(logutil.DEBUG).Info("extractFromBlock: image_url is an external URL, skipping")
+			logger.V(1).Info("extractFromBlock: image_url is an external URL, skipping")
 		}
 	case "input_audio":
 		if d, err := base64.StdEncoding.DecodeString(block.InputAudio.Data); err == nil {
 			data = d
 		} else {
-			logger.V(logutil.DEBUG).Info("extractFromBlock: failed to decode input_audio base64", "err", err)
+			logger.V(1).Info("extractFromBlock: failed to decode input_audio base64", "err", err)
 		}
 	}
 
@@ -173,7 +173,7 @@ func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *
 			Data: data,
 			Hash: hex.EncodeToString(hash[:]),
 		}
-		logger.V(logutil.DEBUG).Info("extractFromBlock: extracted item", "type", block.Type, "sizeBytes", len(data), "hash", item.Hash)
+		logger.V(1).Info("extractFromBlock: extracted item", "type", block.Type, "sizeBytes", len(data), "hash", item.Hash)
 		return item
 	}
 	return nil
@@ -182,7 +182,7 @@ func extractFromBlock(ctx context.Context, block schedulingtypes.ContentBlock) *
 func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalItem {
 	logger := log.FromContext(ctx)
 	t, _ := m["type"].(string)
-	logger.V(logutil.DEBUG).Info("extractFromMap: processing part", "type", t)
+	logger.V(1).Info("extractFromMap: processing part", "type", t)
 	var data []byte
 	switch t {
 	case "image_url":
@@ -196,12 +196,12 @@ func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalIte
 					if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 						data = d
 					} else {
-						logger.V(logutil.DEBUG).Info("extractFromMap: failed to decode image_url base64", "err", err)
+						logger.V(1).Info("extractFromMap: failed to decode image_url base64", "err", err)
 					}
 				}
 			}
 		} else {
-			logger.V(logutil.DEBUG).Info("extractFromMap: image_url is an external URL, skipping")
+			logger.V(1).Info("extractFromMap: image_url is an external URL, skipping")
 		}
 	case "input_audio":
 		ia, _ := m["input_audio"].(map[string]any)
@@ -209,7 +209,7 @@ func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalIte
 		if d, err := base64.StdEncoding.DecodeString(dataStr); err == nil {
 			data = d
 		} else {
-			logger.V(logutil.DEBUG).Info("extractFromMap: failed to decode input_audio base64", "err", err)
+			logger.V(1).Info("extractFromMap: failed to decode input_audio base64", "err", err)
 		}
 	}
 
@@ -219,7 +219,7 @@ func extractFromMap(ctx context.Context, m map[string]any) *attrmm.MultimodalIte
 			Data: data,
 			Hash: hex.EncodeToString(hash[:]),
 		}
-		logger.V(logutil.DEBUG).Info("extractFromMap: extracted item", "type", t, "sizeBytes", len(data), "hash", item.Hash)
+		logger.V(1).Info("extractFromMap: extracted item", "type", t, "sizeBytes", len(data), "hash", item.Hash)
 		return item
 	}
 	return nil
